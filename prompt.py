@@ -1,15 +1,21 @@
 import os
 from datasets import load_dataset
 from openai import OpenAI
-from preprocess import construct_prompt
+from preprocess import construct_prompt, construct_prompt_movie
+import json
+from helper import save_prompt_as_array
 
-os.environ['OPENAI_API_KEY'] = 'sk-proj-zgpS1dH01GeQiQzhICjNT3BlbkFJq8oC1i8atPEckRUxahYK'
+with open('config.json', 'r') as file:
+    config = json.load(file)
+
+os.environ['OPENAI_API_KEY'] = config['api_key']
 client = OpenAI()
 
 
-def prompt_chatgpt(prompt_type, conv_id, few_shot_no):
+def prompt_chatgpt(prompt_type, conv_id, few_shot_no, section="train", corpus = None):
     dataset = load_dataset("bavard/personachat_truecased", "full")
-    system_prompt, user_prompt, target_response = construct_prompt(dataset, conv_id, prompt_type, few_shot_no)
+    #system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section)
+    system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(corpus, conv_id)
     response = client.chat.completions.create(
         model="gpt-3.5-turbo-16k", 
         messages=[
@@ -17,11 +23,22 @@ def prompt_chatgpt(prompt_type, conv_id, few_shot_no):
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.9,  
-        max_tokens=15, # since persona-chat sets a maximum of 15 words per message
+        max_tokens=30, # since persona-chat sets a maximum of 15 words per message
     )
-    return response.choices[0].message.content, target_response, user_prompt
+    generated_response = response.choices[0].message.content
+    text_to_json = {
+        "conv_id": conv_id,
+        "system_prompt": system_prompt,
+        "user_prompt": user_prompt,
+        "generated_response": generated_response,
+        "target_response": target_response,
+        "persona_text": persona_text
+    }
+    save_prompt_as_array(text_to_json,"experiment1")
+    return generated_response, target_response, user_prompt, persona_text
 
-# need to be fixed, batching is not working
+
+# need to be fixed, batching is not working with OpenAI API
 def prompt_chatgpt_batch(prompt_type, conv_ids, few_shot_no):
     dataset = load_dataset("bavard/personachat_truecased", "full")
     
