@@ -1,5 +1,5 @@
 from prompt import prompt_chatgpt
-from analyze import calculate_metrics, print_avg_metrics
+from analyze import calculate_metrics, print_avg_metrics, plot_avg_metrics
 from helper import generate_filtered_conv_ids
 import pandas as pd
 import seaborn as sns
@@ -24,7 +24,7 @@ def test_persona_chat():
 
 def test_movie_chat():
     corpus = Corpus(filename=download("movie-corpus"))
-    generate_filtered_conv_ids(corpus, 100)
+    #generate_filtered_conv_ids(corpus, 100)
     filename = 'config.json'
     # Load the updated content from the JSON file
     with open(filename, 'r') as file:
@@ -39,6 +39,12 @@ def test_movie_chat():
         target_response = results[1]
         persona_text = results[3]
         metrics = calculate_metrics(id, target_response, generated_response, persona_text)
+
+#test_movie_chat()
+#print_avg_metrics("experiment1_metrics")
+plot_avg_metrics(["experiment1_metrics", "Cornell_Movie_Metrics/experiment-100testpoints/experiment1_task_prompt_implicit_metrics"])
+#corpus = Corpus(filename=download("movie-corpus"))
+#generate_filtered_conv_ids(corpus, 1000)
 
 def generate_heat():
     # Get results
@@ -73,4 +79,4 @@ def generate_heat():
     # Show the plot
     plt.show()
 
-test_movie_chat()
+#test_movie_chat()

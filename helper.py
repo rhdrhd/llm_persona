@@ -67,6 +67,7 @@ def generate_filtered_conv_ids(corpus, total_num):
     num_of_speakers = 0
     conv_ids = []
     conv_id = 0
+    count = 0
     # only select conversation with 2 speakers and 12, 14, 16 utterances
     while len(conv_ids) < total_num:
         df = corpus.random_conversation().get_utterances_dataframe()
@@ -74,8 +75,10 @@ def generate_filtered_conv_ids(corpus, total_num):
         num_of_speakers = df['speaker'].nunique()
         conv_id = df['conversation_id'].iloc[0]
         #print("here")
-        if ((num_of_utterances == 16 or num_of_utterances == 14 or num_of_utterances == 12) and (num_of_speakers == 2) and conv_id not in conv_ids):
+        if ((num_of_utterances > 11) and (num_of_speakers == 2) and conv_id not in conv_ids):
             conv_ids.append(conv_id)
+        count += 1
+        print(count)
 
     filename = 'config.json'
 

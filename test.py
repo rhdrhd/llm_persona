@@ -1,36 +1,35 @@
+from parlai.core.agents import Agent
 from parlai.core.params import ParlaiParser
-from parlai.core.script import ParlaiScript, register_script
 from parlai.core.worlds import create_task
 
-@register_script('display_data')
-class DisplayData(ParlaiScript):
-    @classmethod
-    def setup_args(cls):
-        parser = ParlaiParser(True, True, 'Display data from a task')
-        parser.add_argument('-n', '--num-examples', default=10, type=int)
-        parser.add_argument('-dt', '--datatype', default='train')
-        return parser
+class RepeatLabelAgent(Agent):
+    # initialize by setting id
+    def __init__(self, opt):
+        self.id = 'RepeatLabel'
+    # store observation for later, return it unmodified
+    def observe(self, observation):
+        self.observation = observation
+        return observation
+    # return label from before if available
+    def act(self):
+        reply = {'id': self.id}
+        if 'labels' in self.observation:
+            reply['text'] = ', '.join(self.observation['labels'])
+        else:
+            reply['text'] = "I don't know."
+        return reply
+    
+parser = ParlaiParser()
+opt = parser.parse_args()
 
-    def run(self):
-        opt = self.opt
-        opt['task'] = 'personachat'
-        world = create_task(opt, None)
+agent = RepeatLabelAgent(opt)
+world = create_task(opt, agent)
 
-        # Collect data
-        data = []
-        for _ in range(opt['num_examples']):
-            world.parley()
-            msg = world.get_acts()[0]
-            data.append({
-                'text': msg.get('text', ''),
-                'labels': msg.get('labels', [''])[0],
-                'episode_done': msg.get('episode_done', False)
-            })
-
-        return data
-
-if __name__ == '__main__':
-    script = DisplayData.main()
-    import pandas as pd
-    df = pd.DataFrame(script)
-    print(df)
+for _ in range(10):
+    world.parley()
+    for a in world.acts:
+        # print the actions from each agent
+        print(a)
+        if world.epoch_done():
+              print('EPOCH DONE')
+              break

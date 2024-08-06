@@ -110,7 +110,12 @@ def construct_prompt_movie(corpus, conv_id):
 
     convo_df = corpus.get_conversation(conv_id).get_utterances_dataframe()
     reversed_df = convo_df.iloc[::-1]
-    history_convo = reversed_df['text'].iloc[:-1].tolist()
+
+    if len(reversed_df)>12:
+        trimmed_df = reversed_df.head(12)
+    else:
+        trimmed_df = reversed_df
+    history_convo = trimmed_df['text'].iloc[:-1].tolist()
     history_convo_processed = "Dialogue history: \n"
 
     for i in range(0,len(history_convo)-1,2):
@@ -121,10 +126,11 @@ def construct_prompt_movie(corpus, conv_id):
     
     history_convo_processed += "Bot: " + history_convo[-1] + "\n"
 
-    system_prompt += "Considering the user's profile and the ongoing discussion's context as established in the previous dialogue history, craft a response within 50 words that is coherent, relevant, and tailored to the user's interests and style of communication."
+    system_prompt += "Considering the user's profile and the ongoing discussion's context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the user's interests and style of communication."
+    system_prompt = ""
     user_prompt += history_convo_processed + "User:"
 
-    raw_target_response = reversed_df['text'].iloc[-1]
+    raw_target_response = trimmed_df['text'].iloc[-1]
     persona_text = raw_target_response 
     return system_prompt, user_prompt, raw_target_response, persona_text
     

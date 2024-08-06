@@ -13,7 +13,7 @@ client = OpenAI()
 
 
 def prompt_chatgpt(prompt_type, conv_id, few_shot_no, section="train", corpus = None):
-    dataset = load_dataset("bavard/personachat_truecased", "full")
+    #dataset = load_dataset("bavard/personachat_truecased", "full")
     #system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section)
     system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(corpus, conv_id)
     response = client.chat.completions.create(

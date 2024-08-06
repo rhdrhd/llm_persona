@@ -245,14 +245,14 @@ def calculate_avg_metrics(data):
     }
     for object in data:
         for key in object.keys():
-            if key == 'Conversation ID':
+            if key == 'conv_id' or key == 'Conversation ID':
                 continue
             else: 
                 avg_metrics[key] += object[key]
     
     num_objects = len(data)
     for key in avg_metrics.keys():
-        if key == 'Conversation ID':
+        if key == 'conv_id' or key == 'Conversation ID':
             continue
         else:
             avg_metrics[key] /= num_objects
@@ -263,6 +263,47 @@ def print_avg_metrics(filename):
     data = read_json(filename)
     avg_metrics = calculate_avg_metrics(data)
     print(avg_metrics)
+
+import matplotlib.pyplot as plt
+
+def plot_avg_metrics(filenames):
+    metrics_list = []
+    labels = []
+
+    # Read data from each file and calculate averages
+    for filename in filenames:
+        data = read_json(filename)
+        metrics = calculate_avg_metrics(data)
+        metrics_list.append(metrics)
+        labels.append(filename.split('.')[0])  # Label each dataset by the file name without the extension
+
+    # Get a list of all metric names from the first item in the list (assuming all data have the same metrics)
+    metric_keys = list(metrics_list[0].keys())[1:]
+    n_groups = len(metric_keys)
+    n_files = len(filenames)
+
+    # Create arrays for the data
+    data = np.array([[metrics[key] for metrics in metrics_list] for key in metric_keys])
+
+    # Set up the plot
+    fig, ax = plt.subplots(figsize=(12, 8))
+    index = np.arange(n_groups)
+    bar_width = 0.35
+    opacity = 0.8
+
+    # Create a bar for each file
+    for i in range(n_files):
+        plt.bar(index + i * bar_width, data[:, i], bar_width, alpha=opacity, label=labels[i])
+
+    plt.xlabel('Metrics')
+    plt.ylabel('Values')
+    plt.title('Comparison of Metrics Across Files')
+    plt.xticks(index + bar_width * (n_files - 1) / 2, metric_keys, rotation=45, ha='right')
+    plt.yticks(np.arange(0, 101, 5))
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig("comparison.png")  # Save the plot as a PNG file
+    plt.show()
 
 def test():
     personas = [
