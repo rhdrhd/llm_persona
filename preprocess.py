@@ -109,28 +109,37 @@ def construct_prompt_movie(corpus, conv_id):
     persona_text = ""
 
     convo_df = corpus.get_conversation(conv_id).get_utterances_dataframe()
+    #print(convo_df.head())
     reversed_df = convo_df.iloc[::-1]
 
     if len(reversed_df)>12:
         trimmed_df = reversed_df.head(12)
     else:
         trimmed_df = reversed_df
+
+    # exclude the last utterance from the user
     history_convo = trimmed_df['text'].iloc[:-1].tolist()
     history_convo_processed = "Dialogue history: \n"
 
-    for i in range(0,len(history_convo)-1,2):
-        bot_uttr = "Bot: " + history_convo[i]
-        user_uttr = "User: " + history_convo[i+1]
-        full_uttr = bot_uttr + "\n" + user_uttr + "\n"
-        history_convo_processed += full_uttr
-    
-    history_convo_processed += "Bot: " + history_convo[-1] + "\n"
+    speakers = trimmed_df['speaker'].unique()
+
+    # Concat all history except the last utter from the user
+    for count, convo in enumerate(history_convo):
+        if reversed_df['speaker'].iloc[count] == speakers[0]:
+            bot_uttr = "Bot: " + convo
+            history_convo_processed += bot_uttr + "\n"
+        else :
+            user_uttr = "User: " + convo
+            history_convo_processed += user_uttr + "\n"
+            
+    #print(history_convo_processed)
 
     system_prompt += "Considering the user's profile and the ongoing discussion's context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the user's interests and style of communication."
     system_prompt = ""
     user_prompt += history_convo_processed + "User:"
 
-    raw_target_response = trimmed_df['text'].iloc[-1]
+    # access the last user utterance
+    raw_target_response = trimmed_df['text'].iloc[-1]  
     persona_text = raw_target_response 
     return system_prompt, user_prompt, raw_target_response, persona_text
     
