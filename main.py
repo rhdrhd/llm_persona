@@ -25,7 +25,7 @@ def test_persona_chat():
 def test_movie_chat():
     corpus = Corpus(filename=download("movie-corpus"))
     #generate_filtered_conv_ids(corpus, 100)
-    filename = 'config.json'
+    filename = 'conv_ids.json'
     # Load the updated content from the JSON file
     with open(filename, 'r') as file:
         config_data = json.load(file)
@@ -42,7 +42,7 @@ def test_movie_chat():
 
 #test_movie_chat()
 #print_avg_metrics("experiment1_metrics")
-plot_avg_metrics(["experiment1_metrics", "Cornell_Movie_Metrics/experiment-100testpoints/experiment1_task_prompt_implicit_metrics"])
+#plot_avg_metrics(["experiment1_metrics", "Cornell_Movie_Metrics/experiment-100testpoints/experiment1_task_prompt_implicit_metrics"])
 #corpus = Corpus(filename=download("movie-corpus"))
 #generate_filtered_conv_ids(corpus, 1000)
 

@@ -109,7 +109,6 @@ def construct_prompt_movie(corpus, conv_id):
     persona_text = ""
 
     convo_df = corpus.get_conversation(conv_id).get_utterances_dataframe()
-    #print(convo_df.head())
     reversed_df = convo_df.iloc[::-1]
 
     if len(reversed_df)>12:
