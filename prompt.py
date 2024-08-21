@@ -1,9 +1,12 @@
 import os
 from datasets import load_dataset
+from convokit import Corpus, download
 from openai import OpenAI
 from preprocess import construct_prompt, construct_prompt_movie
+from analyze import calculate_metrics
 import json
 from helper import save_prompt_as_array
+import time
 
 with open('config.json', 'r') as file:
     config = json.load(file)
@@ -12,30 +15,60 @@ os.environ['OPENAI_API_KEY'] = config['api_key']
 client = OpenAI()
 
 
-def prompt_chatgpt(prompt_type, conv_id, few_shot_no, section="train", corpus = None):
-    #dataset = load_dataset("bavard/personachat_truecased", "full")
-    #system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section)
-    system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(corpus, conv_id)
+def prompt_chatgpt(conv_id, prompt_type = "context_only", dataset_name = "movie", dataset = None, few_shot_no = 3, section="train", current_time = None):
+
+    #model_name = "gpt-4o-mini-2024-07-18"
+    #model_name = "chatgpt-4o-latest"
+    model_name = "gpt-4o-2024-08-06"
+    #model_name = "gpt-3.5-turbo-1106"
+    if dataset_name == "personachat":
+        dataset = dataset
+        system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section)
+    elif dataset_name == "movie":
+        dataset = dataset
+        system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(dataset, conv_id, prompt_type)
+
     response = client.chat.completions.create(
-        model="gpt-3.5-turbo-16k", 
+        model = model_name,
+        #model="gpt-3.5-turbo-0613", 
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0.9,  
-        max_tokens=30, # since persona-chat sets a maximum of 15 words per message
+        temperature=0.9,
+        top_p=0.9,  
+        # since persona-chat sets a maximum of 15 words per message
+        #max_tokens=100, 
+        logprobs=True,
+        top_logprobs=5
     )
+
     generated_response = response.choices[0].message.content
-    text_to_json = {
+
+    log_probs = [token_obj.logprob for token_obj in response.choices[0].logprobs.content]
+
+    tokens_list = [token_obj.token for token_obj in response.choices[0].logprobs.content]
+
+    formated_response_to_json = {
         "conv_id": conv_id,
         "system_prompt": system_prompt,
         "user_prompt": user_prompt,
         "generated_response": generated_response,
         "target_response": target_response,
-        "persona_text": persona_text
+        "persona_text": persona_text,
+        "log_probs": log_probs,
+        "tokens_list": tokens_list
     }
-    save_prompt_as_array(text_to_json,"experiment1")
-    return generated_response, target_response, user_prompt, persona_text
+
+    raw_response_to_json = {
+        "raw_response": response.to_dict()
+    }
+    
+
+    save_prompt_as_array(formated_response_to_json,f"experiment1_{prompt_type}_{model_name}_{current_time}")
+    save_prompt_as_array(raw_response_to_json, f"Raw_Response/{dataset_name}_{prompt_type}_{model_name}_{current_time}")
+
+    calculate_metrics(prompt_type, conv_id, generated_response, target_response, user_prompt, persona_text, log_probs, tokens_list, model_name, current_time)
 
 
 # need to be fixed, batching is not working with OpenAI API

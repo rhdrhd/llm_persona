@@ -5,7 +5,7 @@ from convokit import Corpus, download
 def save_json(new_object, filename):
     converted_data = {}
     for key, value in new_object.items():
-        if key == 'Conversation ID':
+        if key == 'Conversation ID' or key == 'conv_id':
             converted_data[key] = value
         else:
             try:
