@@ -3,7 +3,6 @@ from helper import generate_filtered_conv_ids, read_json
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-import json
 from convokit import Corpus, download
 from datasets import load_dataset
 import time
@@ -13,15 +12,14 @@ current_time = time.strftime("%m%d-%H%M")
 #context_only, task_prompt_context_implicit, task_prompt_context_explicit, few_shot_implicit
 #conv_ids = generate_random_conv_ids(total_count=2, range_start=1, range_end=500)
 def test_persona_chat():
-    conv_ids = range(0,100)
-    prompt_type = "task_prompt_context_implicit"
+    conv_ids = range(0,1000)
+    prompt_type = "context_only"
     few_shot_no = 3
     dataset_obj = load_dataset("bavard/personachat_truecased", "full")
     for id in conv_ids:
         # specific settings are in prompt.py
         prompt_chatgpt(id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
 
-    
 
 def test_movie_chat():
     #generate_filtered_conv_ids(corpus, 100)
@@ -33,18 +31,17 @@ def test_movie_chat():
     conv_ids = config_data['conv_ids'][:561]
 
     prompt_type = "context_only"
-    #print(f"The list loaded from {filename}: {conv_ids}")
     print("the list loaded")
     for id in conv_ids:
         results = prompt_chatgpt(id, prompt_type, dataset_name="movie",dataset=corpus)
 
 
 #test_movie_chat()
-#test_persona_chat()
+test_persona_chat()
 #calculate_metrics_from_json("PersonaChat_Metrics/gpt-4o/experiment1_context_only", "context_only")
 #print_avg_metrics("experiment1_metrics")
-selected_metrics = ["BLEU-1", "ROUGE-L", "Distinct-1", "Distinct-2", "Persona Coverage"]
-plot_avg_metrics(["PersonaChat_Metrics/gpt-3.5-turbo-1106/experiment1_context_hint_metrics_100examples_sentiment", "PersonaChat_Metrics/gpt-4o-mini-2024-07-18/experiment1_context_hint_metrics_100examples_emotion"], selected_metrics)
+#selected_metrics = ["BLEU-1", "ROUGE-L", "Distinct-1", "Distinct-2", "Persona Coverage"]
+#plot_avg_metrics(["PersonaChat_Metrics/chatgpt-4o-latest/experiment1_context_only_metrics_100examples", "PersonaChat_Metrics/chatgpt-4o-latest/context_only_metrics_chatgpt-4o-latest_0822-1528"], selected_metrics)
 
 #corpus = Corpus(filename=download("movie-corpus"))
 #generate_filtered_conv_ids(corpus, 1000)

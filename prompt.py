@@ -1,12 +1,10 @@
 import os
 from datasets import load_dataset
-from convokit import Corpus, download
 from openai import OpenAI
 from preprocess import construct_prompt, construct_prompt_movie
 from analyze import calculate_metrics
 import json
 from helper import save_prompt_as_array
-import time
 
 with open('config.json', 'r') as file:
     config = json.load(file)
@@ -17,9 +15,9 @@ client = OpenAI()
 
 def prompt_chatgpt(conv_id, prompt_type = "context_only", dataset_name = "movie", dataset = None, few_shot_no = 3, section="train", current_time = None):
 
-    #model_name = "gpt-4o-mini-2024-07-18"
+    model_name = "gpt-4o-mini-2024-07-18"
     #model_name = "chatgpt-4o-latest"
-    model_name = "gpt-4o-2024-08-06"
+    #model_name = "gpt-4o-2024-08-06"
     #model_name = "gpt-3.5-turbo-1106"
     if dataset_name == "personachat":
         dataset = dataset
@@ -36,7 +34,7 @@ def prompt_chatgpt(conv_id, prompt_type = "context_only", dataset_name = "movie"
             {"role": "user", "content": user_prompt}
         ],
         temperature=0.9,
-        top_p=0.9,  
+        top_p=0.9,
         # since persona-chat sets a maximum of 15 words per message
         #max_tokens=100, 
         logprobs=True,
@@ -65,7 +63,7 @@ def prompt_chatgpt(conv_id, prompt_type = "context_only", dataset_name = "movie"
     }
     
 
-    save_prompt_as_array(formated_response_to_json,f"experiment1_{prompt_type}_{model_name}_{current_time}")
+    save_prompt_as_array(formated_response_to_json,f"{prompt_type}_{model_name}_{current_time}")
     save_prompt_as_array(raw_response_to_json, f"Raw_Response/{dataset_name}_{prompt_type}_{model_name}_{current_time}")
 
     calculate_metrics(prompt_type, conv_id, generated_response, target_response, user_prompt, persona_text, log_probs, tokens_list, model_name, current_time)

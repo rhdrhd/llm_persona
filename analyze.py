@@ -3,8 +3,6 @@ from nltk.translate.bleu_score import sentence_bleu
 from rouge_score import rouge_scorer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
-from collections import Counter
-from nltk.corpus import stopwords
 from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import random
@@ -334,6 +332,7 @@ def calculate_aligned_embedding(gpt_tokens):
         print("mismatch count ", mismatch_count)
     return aligned_embeddings
 
+    
 
 # version 0.0.1 cosine_similarity_without_perplexity
 def calculate_drift_willingness(user_prompt):
@@ -395,17 +394,20 @@ def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
     
     confident_perplexity_001 = 0.0
     confident_perplexity_002 = 0.0
+    redefined_cos_sim = 0.0
     idx = 0
     for idx, token_embedding in enumerate(aligned_embedding):
         token_embedding = torch.tensor(token_embedding).reshape(1, -1)
         cos_sim = cosine_similarity(sentence_embedding, token_embedding)
         confident_perplexity_001 += np.log(cos_sim) + log_probs[idx]
         confident_perplexity_002 += cos_sim * log_probs[idx]
+        redefined_cos_sim += cosine_similarity(sentence_embedding, token_embedding*log_probs[idx])
 
     confident_perplexity_001 = np.exp(-confident_perplexity_001/(idx+1))
     confident_perplexity_002 = np.exp(-confident_perplexity_002/(idx+1))
+    redefined_cos_sim = redefined_cos_sim/(idx+1)
 
-    return confident_perplexity_001, confident_perplexity_002
+    return confident_perplexity_001, confident_perplexity_002, redefined_cos_sim
         
 
 
@@ -446,11 +448,12 @@ def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user
         'Persona Precision': persona_precision,
         'Persona F1': p_f1,
         'Perplexity': perplexity,
-        'Drift Willingness': drift_willingness,
-        'Drift Willingness New1': drift_willingness_new[0],
-        'Drift Willingness New2': drift_willingness_new[1]
+        'Avg Drift Score': drift_willingness,
+        'Confident Drift 001': drift_willingness_new[0],
+        'Confident Drift 002': drift_willingness_new[1],
+        'Redefine Cosine Similarity': drift_willingness_new[2]
     }
-    save_json(metrics, f"experiment1_{prompt_type}_metrics_{model_name}_{current_time}")
+    save_json(metrics, f"{prompt_type}_metrics_{model_name}_{current_time}")
 
 def calculate_avg_metrics(data, selected_metrics=None):
     if selected_metrics is None: 

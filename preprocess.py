@@ -1,6 +1,5 @@
 import random
 from datasets import load_dataset
-import json
 from transformers import pipeline, logging
 
 logging.set_verbosity_error()
@@ -22,7 +21,7 @@ def extract_format_data(dataset, conv_id, section='train'):
     unprocessed = [persona, history_convo, usr_response]
 
     #preprocess the persona
-    persona_processed = "User Persona: \n"
+    persona_processed = "Speaker1 Persona: \n"
     for sen in persona:
         persona_processed += sen + "\n"
 
@@ -31,16 +30,16 @@ def extract_format_data(dataset, conv_id, section='train'):
     
     #concat all history except the last utter from the bot
     for i in range(0,len(history_convo)-1,2):
-        bot_uttr = "Bot: " + history_convo[i]
-        user_uttr = "User: " + history_convo[i+1]
+        bot_uttr = "<speaker0>: " + history_convo[i]
+        user_uttr = "<speaker1>: " + history_convo[i+1]
         full_uttr = bot_uttr + "\n" + user_uttr + "\n"
         history_convo_processed += full_uttr
 
     #add the last utter from bot
-    history_convo_processed += "Bot: " + history_convo[-1] + "\n"
+    history_convo_processed += "<speaker0>: " + history_convo[-1] + "\n"
 
     #preprocess the user response
-    usr_response_processed = "User: " + usr_response + "\n"
+    usr_response_processed = "<speaker1>: " + usr_response + "\n"
 
     processed = [persona_processed, history_convo_processed, usr_response_processed]
     return unprocessed, processed
@@ -71,6 +70,7 @@ def perform_sentiment_analysis(text):
     
     return sentiment_result[0]
 
+# updated: bot -> <speaker0>, user -> <speaker1>
 def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "train", print_output= False):
     #max_conv_id = dataset['train']['conv_id'][-1]
     raw_materials, materials = extract_format_data(dataset, conv_id, section=section)
@@ -84,24 +84,24 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "tra
     # materials[0] is persona, materials[1] is history conversation processed, materials[2] is user response processed
     # only history dialogue
     if prompt_type == "context_only":
-        user_prompt += materials[1] + "User:"
+        user_prompt += materials[1] + "<speaker1>:"
 
     # only history dialogue with small hint
     if prompt_type == "context_hint":
         sentiment_ans = perform_sentiment_analysis(raw_target_response)
         system_prompt += f"Hint: the mood of generated response should be {sentiment_ans['label']} with a score of {sentiment_ans['score']}."
-        user_prompt += materials[1] + "User:"
+        user_prompt += materials[1] + "<speaker1>:"
         
     # task prompt, history dialogue
     if prompt_type == "task_prompt_context_implicit":
         #version 1 Based on the previous conversation history, generate a response for the user that aligns with their profile and the current context of the discussion.
-        system_prompt += "Considering the user's profile and the ongoing discussion's context as established in the previous dialogue history, craft a response within 15 words that is coherent, relevant, and tailored to the user's interests and style of communication."
-        user_prompt += materials[1] + "User:"
+        system_prompt += "Considering the user's profile and the context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the user's interests and style of communication."
+        user_prompt += materials[1] + "<speaker1>:"
 
     # task prompt, persona, and history dialogue
     if prompt_type == "task_prompt_context_explicit":
         system_prompt += "Given the user's profile as outlined in the provided persona information, and considering the context of the ongoing discussion from the previous dialogue history, craft a response in 15 words that is specifically tailored to resonate with the user's explicit characteristics and maintains the continuity of the dialogue."
-        user_prompt += materials[0]+ materials[1] + "User:"
+        user_prompt += materials[0]+ materials[1] + "<speaker1>:"
 
     # few-shot demos, history dialogue
     if prompt_type == "few_shot_implicit":
@@ -109,7 +109,7 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "tra
 
         #set the implicit flag to True to exclude persona in few-shot demos
         few_shot_examples = create_few_shot_examples(dataset, conv_id, few_shot_no, section=section, implicit=True)
-        user_prompt += few_shot_examples + materials[1]+ "User:"
+        user_prompt += few_shot_examples + materials[1]+ "<speaker1>:"
 
     if print_output:
         print("### TASK PROMPT ###\n" + system_prompt)
