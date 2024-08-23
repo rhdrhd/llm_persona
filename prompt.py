@@ -13,9 +13,9 @@ os.environ['OPENAI_API_KEY'] = config['api_key']
 client = OpenAI()
 
 
-def prompt_chatgpt(conv_id, prompt_type = "context_only", dataset_name = "movie", dataset = None, few_shot_no = 3, section="train", current_time = None):
+def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_name = "movie", dataset = None, few_shot_no = 3, section="train", current_time = None):
 
-    model_name = "gpt-4o-mini-2024-07-18"
+    #model_name = "gpt-4o-mini-2024-07-18"
     #model_name = "chatgpt-4o-latest"
     #model_name = "gpt-4o-2024-08-06"
     #model_name = "gpt-3.5-turbo-1106"

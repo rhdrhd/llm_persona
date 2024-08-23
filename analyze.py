@@ -224,7 +224,7 @@ def clean_tokens(tokens):
     
     cleaned_tokens = []
     for token in tokens:
-        print("token ", token)
+        #print("token ", token)
         cleaned_token = token
         for substring in substrings_to_remove:
             cleaned_token = cleaned_token.replace(substring, "")
@@ -275,10 +275,10 @@ def calculate_aligned_embedding(gpt_tokens):
         embedding_sum = roberta_embeddings[0, roberta_index].numpy()
         token_count = 1
 
-        print("prev ",current_roberta_token)
-        print("current embedding ", embedding_sum[0])
-        print("roberta_index ", roberta_index)
-        print("gpt_token ", stripped_gpt_token)
+        #print("prev ",current_roberta_token)
+        #print("current embedding ", embedding_sum[0])
+        #print("roberta_index ", roberta_index)
+        #print("gpt_token ", stripped_gpt_token)
 
 
         # Now handle merging RoBERTa tokens to match the final GPT token
@@ -305,12 +305,12 @@ def calculate_aligned_embedding(gpt_tokens):
                 current_roberta_token += next_roberta_token
                 embedding_sum += roberta_embeddings[0, roberta_index].numpy()
                 token_count += 1
-                print(f"Further merging RoBERTa token '{next_roberta_token}' to form '{current_roberta_token}'")
+                #print(f"Further merging RoBERTa token '{next_roberta_token}' to form '{current_roberta_token}'")
             elif len(current_roberta_token) > len(stripped_gpt_token) and gpt_index + 1 < len(gpt_tokens):
                 gpt_index += 1
                 next_gpt_token = gpt_tokens[gpt_index].lstrip()
                 stripped_gpt_token += next_gpt_token
-                print(f"Further merging GPT token '{next_gpt_token}' to form '{stripped_gpt_token}'")
+                #print(f"Further merging GPT token '{next_gpt_token}' to form '{stripped_gpt_token}'")
             else:
                 break
 
@@ -318,7 +318,7 @@ def calculate_aligned_embedding(gpt_tokens):
         if current_roberta_token == stripped_gpt_token:
             averaged_embedding = embedding_sum / token_count
             aligned_embeddings.append(averaged_embedding)
-            print(f"Aligned '{stripped_gpt_token}' to '{current_roberta_token}', averaged embedding shape: {averaged_embedding.shape}")
+            #print(f"Aligned '{stripped_gpt_token}' to '{current_roberta_token}', averaged embedding shape: {averaged_embedding.shape}")
         else:
             print(f"Warning: Mismatch between GPT token '{stripped_gpt_token}' and RoBERTa token '{current_roberta_token}'")
             mismatch_count += 1
@@ -329,7 +329,7 @@ def calculate_aligned_embedding(gpt_tokens):
         gpt_index += 1
         roberta_index += 1
 
-        print("mismatch count ", mismatch_count)
+        #print("mismatch count ", mismatch_count)
     return aligned_embeddings
 
     

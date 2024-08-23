@@ -95,7 +95,8 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "tra
     # task prompt, history dialogue
     if prompt_type == "task_prompt_context_implicit":
         #version 1 Based on the previous conversation history, generate a response for the user that aligns with their profile and the current context of the discussion.
-        system_prompt += "Considering the user's profile and the context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the user's interests and style of communication."
+        #version 2 Considering the user's profile and the context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the <speaker1>'s interests and style of communication.
+        system_prompt += "Considering the previous dialogue history, craft a response that is coherent, relevant, and tailored to the interests and style of communication of <speaker1>"
         user_prompt += materials[1] + "<speaker1>:"
 
     # task prompt, persona, and history dialogue
