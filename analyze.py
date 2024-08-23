@@ -12,24 +12,28 @@ import math
 import gensim.downloader as gensim_downloader
 from helper import save_json, read_json
 import matplotlib.pyplot as plt
-from transformers import RobertaTokenizerFast, RobertaModel
+from transformers import RobertaTokenizerFast, RobertaModel, logging
 import torch
 
+logging.set_verbosity_error()
 # Load the English NLP model
-tokenizer = spacy.load('en_core_web_sm')
+en_tokenizer = spacy.load('en_core_web_sm')
 # Load the GloVe model
 glove_model = gensim_downloader.load("glove-twitter-100")
+
+tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
+model = RobertaModel.from_pretrained('roberta-base')
 
 # generate random conversation IDs
 def generate_random_conv_ids(total_count, range_start, range_end):
     return random.sample(range(range_start, range_end + 1), total_count)
 
 def tokenize_with_punctuation(text):
-    doc = tokenizer(text)
+    doc = en_tokenizer(text)
     return [token.text.lower() for token in doc]
 
 def tokenize(text):
-    doc = tokenizer(text)
+    doc = en_tokenizer(text)
     # Filter out punctuation and stop words
     return [token.text.lower() for token in doc if token.is_alpha or token.is_digit]
 
@@ -237,10 +241,11 @@ def clean_tokens(tokens):
     return cleaned_tokens
 
 def calculate_aligned_embedding(gpt_tokens):
+    # gpt token separate <speaker1> as <, speaker, 1, >:
+    if "".join(gpt_tokens[:4])== "<speaker1>":
+        gpt_tokens = gpt_tokens[4:]
+    
     gpt_tokens = clean_tokens(gpt_tokens)
-    # Initialize RoBERTa tokenizer and model
-    tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
-    model = RobertaModel.from_pretrained('roberta-base')
 
     # List of tokens from GPT
     #gpt_tokens = [token['token'] for token in data[2]['raw_response']['choices'][0]['logprobs']['content']]
@@ -335,10 +340,13 @@ def calculate_aligned_embedding(gpt_tokens):
     
 
 # version 0.0.1 cosine_similarity_without_perplexity
-def calculate_drift_willingness(user_prompt):
-    # remove Dialogue History: and User: 
-    dialogue_lines = user_prompt.split('\n')[1:-1]
-    
+def calculate_drift_willingness(user_prompt, prompt_type):
+    # extract content except last label
+    history = user_prompt.split('\n')[:-1]
+    start_index = history.index("Dialogue history: ")
+    # further extract and remove all irrelevant content in the beginning
+    dialogue_lines = history[start_index+1:]
+
     # remove the Bot and User labels
     dialogue_list_no_labels = [line.split(": ", 1)[1] for line in dialogue_lines]
     history_convo = dialogue_list_no_labels
@@ -362,9 +370,7 @@ def calculate_drift_willingness(user_prompt):
 
 def get_token_embedding(sentence, model_name):
     sentence = sentence.lower()
-    # Load pre-trained RoBERTa model and tokenizer
-    tokenizer = RobertaTokenizerFast.from_pretrained(model_name)
-    model = RobertaModel.from_pretrained(model_name)
+
     # Tokenize input
     inputs = tokenizer(sentence, return_tensors='pt')
     # Generate contextualized embeddings
@@ -382,7 +388,12 @@ def get_token_embedding(sentence, model_name):
 def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
     aligned_embedding = calculate_aligned_embedding(gpt_tokens)
     # remove Dialogue History: and User: 
-    dialogue_lines = user_prompt.split('\n')[1:-1]
+    # extract content except last label
+    history = user_prompt.split('\n')[:-1]
+    start_index = history.index("Dialogue history: ")
+    # further extract and remove all irrelevant content in the beginning
+    dialogue_lines = history[start_index+1:]
+
     # remove the Bot and User labels
     dialogue_list_no_labels = [line.split(": ", 1)[1] for line in dialogue_lines]
     # Get the last utterance
@@ -426,7 +437,7 @@ def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user
     persona_precision = calculate_persona_precision(generated_sentence, persona)
     p_f1 = calculate_p_f1(generated_sentence, persona)
     perplexity = calculate_perplexity(log_probs)
-    drift_willingness = calculate_drift_willingness(user_prompt)
+    drift_willingness = calculate_drift_willingness(user_prompt, prompt_type)
     drift_willingness_new = calculate_drift_perplexity(user_prompt, log_probs, tokens_list)
     metrics = {
         'Conversation ID': id,

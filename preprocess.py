@@ -21,7 +21,7 @@ def extract_format_data(dataset, conv_id, section='train'):
     unprocessed = [persona, history_convo, usr_response]
 
     #preprocess the persona
-    persona_processed = "Speaker1 Persona: \n"
+    persona_processed = "<speaker1> Persona: \n"
     for sen in persona:
         persona_processed += sen + "\n"
 
@@ -101,7 +101,7 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "tra
 
     # task prompt, persona, and history dialogue
     if prompt_type == "task_prompt_context_explicit":
-        system_prompt += "Given the user's profile as outlined in the provided persona information, and considering the context of the ongoing discussion from the previous dialogue history, craft a response in 15 words that is specifically tailored to resonate with the user's explicit characteristics and maintains the continuity of the dialogue."
+        system_prompt += "Given the user's profile as outlined in <speaker1> Persona, and considering the previous dialogue history, craft a response that is coherent, relevant, and tailored to the interests and style of communication of <speaker1>"
         user_prompt += materials[0]+ materials[1] + "<speaker1>:"
 
     # few-shot demos, history dialogue

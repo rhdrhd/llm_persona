@@ -1,0 +1,9 @@
+name: llm-persona
+
+dependencies:
+  - python=3.9
+  - pip
+  - pip:
+  - -r requirements.txt
+  - postBuild:
+    - python -m spacy download en
