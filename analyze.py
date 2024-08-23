@@ -7,6 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import random
 import numpy as np
+import pandas as pd
 import spacy
 import math
 import gensim.downloader as gensim_downloader
@@ -368,7 +369,7 @@ def calculate_drift_willingness(user_prompt, prompt_type):
     avg_willingness = sum(cos_sim_list)/len(cos_sim_list)
     return avg_willingness
 
-def get_token_embedding(sentence, model_name):
+def get_token_embedding(sentence):
     sentence = sentence.lower()
 
     # Tokenize input
@@ -400,7 +401,7 @@ def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
     last_utterance = dialogue_list_no_labels[-1]
 
     # Compute the sentence embedding by averaging all token embeddings
-    last_utterance_embedding, last_utterance_t= get_token_embedding(last_utterance, model_name='roberta-base')
+    last_utterance_embedding, last_utterance_t= get_token_embedding(last_utterance)
     sentence_embedding = torch.mean(last_utterance_embedding, dim=1)
     
     confident_perplexity_001 = 0.0
@@ -489,19 +490,21 @@ def calculate_avg_metrics(data, selected_metrics=None):
         }
     else:
         avg_metrics = {metric: 0 for metric in selected_metrics}
-        avg_metrics['Conversation ID'] = 0
-        
+    
+    outlier_count = 0
+
     for object in data:
         for key in avg_metrics.keys():
+            value = object[key]
+            if np.isnan(value) or np.isinf(value) or value >100:
+                outlier_count += 1
+            else: 
                 avg_metrics[key] += object[key]
     
-    num_objects = len(data)
+    num_objects = len(data) - outlier_count
     for key in avg_metrics.keys():
-        if key == 'conv_id' or key == 'Conversation ID':
-            continue
-        else:
-            avg_metrics[key] /= num_objects
-            avg_metrics[key] = avg_metrics[key]*100
+        avg_metrics[key] /= num_objects
+        avg_metrics[key] = avg_metrics[key]*100
     return avg_metrics
 
 def calculate_metrics_from_json(filename, prompt_type):
@@ -516,7 +519,7 @@ def print_avg_metrics(filename):
     print(avg_metrics)
 
 
-def plot_avg_metrics(filenames, selected_metrics=None):
+def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
     metrics_list = []
     labels = []
 
@@ -525,7 +528,7 @@ def plot_avg_metrics(filenames, selected_metrics=None):
         data = read_json(filename)
         metrics = calculate_avg_metrics(data, selected_metrics)
         metrics_list.append(metrics)
-        labels.append(filename.split('/')[1]+" "+filename.split('/')[2])  # Label each dataset by the file name without the extension
+        labels.append(filename.split('/')[-1])  # Label each dataset by the file name without the extension
 
     # Get a list of all metric names except the first item which is conv_id
     if selected_metrics is None:
@@ -533,48 +536,67 @@ def plot_avg_metrics(filenames, selected_metrics=None):
     else:
         metric_keys = selected_metrics
 
-    # Get a list of all metric names from the first item in the list (assuming all data have the same metrics)
-    n_groups = len(metric_keys)
-    n_files = len(filenames)
+    original_df = pd.DataFrame(metrics_list, index=labels, columns=metric_keys)
+    df = original_df.applymap(lambda x: f"{x:.2f}" if isinstance(x, float) else x)
 
-    # Create arrays for the data
-    data = np.array([[metrics[key] for metrics in metrics_list] for key in metric_keys])
 
-    # Set up the plot
-    fig, ax = plt.subplots(figsize=(12, 8))
-    index = np.arange(n_groups)
-    bar_width = 0.3
-    opacity = 0.8
+    if type == "bar":
+        # Get a list of all metric names from the first item in the list (assuming all data have the same metrics)
+        n_groups = len(metric_keys)
+        n_files = len(filenames)
 
-    # Create a bar for each file
-    for i in range(n_files):
-        bars = plt.bar(index + i * bar_width, data[:, i], bar_width, alpha=opacity, label=labels[i])
+        # Create arrays for the data
+        data = np.array([[metrics[key] for metrics in metrics_list] for key in metric_keys])
 
-        # Display the value on top of each bar
-        for bar in bars:
-            height = bar.get_height()
-            plt.text(
-                bar.get_x() + bar.get_width() / 2.0,
-                height,
-                f'{height:.2f}',  # Format the value to 1 decimal places
-                ha='center',
-                va='bottom',
-                fontsize=5,
-                rotation=25
-            )
+        # Set up the plot
+        fig, ax = plt.subplots(figsize=(12, 8))
+        index = np.arange(n_groups)
+        bar_width = 0.3
+        opacity = 0.8
 
-    plt.xlabel('Metrics')
-    
-    plt.ylabel('Values')
-    plt.title('Comparison of Metrics Across Files')
-    plt.xticks(index + bar_width * (n_files - 1) / 2, metric_keys, rotation=45, ha='right')
+        # Create a bar for each file
+        for i in range(n_files):
+            bars = plt.bar(index + i * bar_width, data[:, i], bar_width, alpha=opacity, label=labels[i])
 
-    plt.yticks(np.arange(0, 101, 5))
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(f"comparison.png")
-    plt.show()
-    
+            # Display the value on top of each bar
+            for bar in bars:
+                height = bar.get_height()
+                plt.text(
+                    bar.get_x() + bar.get_width() / 2.0,
+                    height,
+                    f'{height:.2f}',  # Format the value to 1 decimal places
+                    ha='center',
+                    va='bottom',
+                    fontsize=5,
+                    rotation=25
+                )
+
+        plt.xlabel('Metrics')
+        
+        plt.ylabel('Values')
+        plt.title('Comparison of Metrics Across Files')
+        plt.xticks(index + bar_width * (n_files - 1) / 2, metric_keys, rotation=45, ha='right')
+
+        plt.yticks(np.arange(0, 101, 5))
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(f"comparison.png")
+        plt.show()
+
+    elif type == "table":
+        # Plot the DataFrame as a table in a matplotlib figure
+        fig, ax = plt.subplots(figsize=(16, 4))  # Adjust size as needed
+        ax.axis('tight')
+        ax.axis('off')
+        table = ax.table(cellText=df.values, colLabels=df.columns, rowLabels=df.index, cellLoc='center', loc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(8)  # Adjust font size as needed
+        table.scale(1.2, 1.2)  # Adjust scaling factor to fit your screen
+
+        plt.subplots_adjust(left=0.35, bottom=0.11, right=0.9, top=0.88, wspace=0.2, hspace=0.2)
+        plt.title('Comparison of Metrics Across Files')
+        plt.savefig('metrics_table.png')  # Save the figure as a png file
+        plt.show() 
 
 def test():
     personas = [
