@@ -8,18 +8,18 @@ In this project, we intend to build a chatbot that learns user's style of commun
 
 | Scheme                 | Model                 | Status |
 |------------------------|-----------------------|--------|
-| Context-only           | chatgpt-4o-latest     |       |
-|                        | gpt-4o-2024-08-06     |     |
-|                        | gpt-4o-mini-2024-07-18|      |
-|                        | gpt-3.5-turbo-1106    |      |
+| Context-only           | chatgpt-4o-latest     |  &check;     |
+|                        | gpt-4o-2024-08-06     |  &check;   |
+|                        | gpt-4o-mini-2024-07-18|  &check;    |
+|                        | gpt-3.5-turbo-1106    |  &check;    |
 | Task Prompt + Context  | chatgpt-4o-latest     |        |
-|                        | gpt-4o-2024-08-06     |        |
-|                        | gpt-4o-mini-2024-07-18|        |
-|                        | gpt-3.5-turbo-1106    |        |
-| Task Prompt + Context + Persona | chatgpt-4o-latest     |        |
-|                        | gpt-4o-2024-08-06     |        |
-|                        | gpt-4o-mini-2024-07-18|        |
-|                        | gpt-3.5-turbo-1106    |        |
+|                        | gpt-4o-2024-08-06     |   &check;     |
+|                        | gpt-4o-mini-2024-07-18|   &check;     |
+|                        | gpt-3.5-turbo-1106    |   &check;     |
+| Task Prompt + Context + Persona | chatgpt-4o-latest     |    &check;    |
+|                        | gpt-4o-2024-08-06     |    &check;    |
+|                        | gpt-4o-mini-2024-07-18|   &check;     |
+|                        | gpt-3.5-turbo-1106    |   &check;     |
 
 
 #### 2. Cornell Movie Dialogues
