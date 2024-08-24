@@ -437,9 +437,13 @@ def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user
     persona_recall = calculate_persona_recall(generated_sentence, persona)
     persona_precision = calculate_persona_precision(generated_sentence, persona)
     p_f1 = calculate_p_f1(generated_sentence, persona)
-    perplexity = calculate_perplexity(log_probs)
     drift_willingness = calculate_drift_willingness(user_prompt, prompt_type)
-    drift_willingness_new = calculate_drift_perplexity(user_prompt, log_probs, tokens_list)
+    if log_probs is not None:
+        perplexity = calculate_perplexity(log_probs)
+        drift_willingness_new = calculate_drift_perplexity(user_prompt, log_probs, tokens_list)
+    else:
+        perplexity = 0
+        drift_willingness_new = [0, 0, 0]
     metrics = {
         'Conversation ID': id,
         'BLEU-1': bleu_score[0],
@@ -491,20 +495,23 @@ def calculate_avg_metrics(data, selected_metrics=None):
     else:
         avg_metrics = {metric: 0 for metric in selected_metrics}
     
-    outlier_count = 0
+    outlier_count = avg_metrics.copy()
 
     for object in data:
         for key in avg_metrics.keys():
             value = object[key]
-            if np.isnan(value) or np.isinf(value) or value >100:
-                outlier_count += 1
+            if np.isnan(value) or np.isinf(value) or value >1000:
+                outlier_count[key] += 1
             else: 
                 avg_metrics[key] += object[key]
     
-    num_objects = len(data) - outlier_count
+    num_objects = len(data)
+    
     for key in avg_metrics.keys():
-        avg_metrics[key] /= num_objects
-        avg_metrics[key] = avg_metrics[key]*100
+        avg_metrics[key] /= (num_objects- outlier_count[key])
+        print(f"{key}: {num_objects- outlier_count[key]}")  
+        if key not in ["Perplexity"]:
+            avg_metrics[key] = avg_metrics[key]*100
     return avg_metrics
 
 def calculate_metrics_from_json(filename, prompt_type):
@@ -537,7 +544,7 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
         metric_keys = selected_metrics
 
     original_df = pd.DataFrame(metrics_list, index=labels, columns=metric_keys)
-    df = original_df.applymap(lambda x: f"{x:.2f}" if isinstance(x, float) else x)
+    df = original_df.map(lambda x: f"{x:.2f}" if isinstance(x, float) else x)
 
 
     if type == "bar":
@@ -590,10 +597,10 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
         ax.axis('off')
         table = ax.table(cellText=df.values, colLabels=df.columns, rowLabels=df.index, cellLoc='center', loc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(8)  # Adjust font size as needed
+        table.set_fontsize(7)  # Adjust font size as needed
         table.scale(1.2, 1.2)  # Adjust scaling factor to fit your screen
 
-        plt.subplots_adjust(left=0.35, bottom=0.11, right=0.9, top=0.88, wspace=0.2, hspace=0.2)
+        plt.subplots_adjust(left=0.3, bottom=0.11, right=0.9, top=0.88, wspace=0.2, hspace=0.2)
         plt.title('Comparison of Metrics Across Files')
         plt.savefig('metrics_table.png')  # Save the figure as a png file
         plt.show() 
