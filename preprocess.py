@@ -54,6 +54,8 @@ def create_example(dataset, conv_id, implicit=False):
     
 
 def create_few_shot_examples(dataset, conv_id, few_shot_no, section="train",implicit=False):
+    if few_shot_no is None:
+        print("Please specify the number of few-shot examples")
     max_conv_id = dataset[section]['conv_id'][-1]
     pool = [num for num in range(1, max_conv_id + 1) if num != conv_id]
     random_conv_ids = get_random_conv_id(pool, few_shot_no)
@@ -71,20 +73,43 @@ def perform_sentiment_analysis(text):
     return sentiment_result[0]
 
 # updated: bot -> <speaker0>, user -> <speaker1>
-def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "train", print_output= False):
+def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=None, section= "train", print_output= False):
     #max_conv_id = dataset['train']['conv_id'][-1]
     raw_materials, materials = extract_format_data(dataset, conv_id, section=section)
-    raw_target_response = raw_materials[2]
     raw_persona_text = raw_materials[0]
-
+    raw_history_convo_list = raw_materials[1]
+    raw_target_response = raw_materials[2]
+    
     system_prompt = ""
     user_prompt = ""
     few_shot_examples = ""
 
     # materials[0] is persona, materials[1] is history conversation processed, materials[2] is user response processed
+
+    # only history dialogue with last query before response
+    if prompt_type == "query_only":
+        user_prompt += "Dialogue history: " + "\n<speaker0>: " + raw_history_convo_list[-1] + "\n<speaker1>:" 
+    if prompt_type == "round3_only":
+        total_convo = "Dialogue history: \n"
+        # change the number here to select more rounds -3 for one extra round, -5 for two extra rounds, etc.
+        for idx, convo in enumerate(raw_history_convo_list[-9:]):
+            if idx % 2 == 0:
+                total_convo += "<speaker0>: " + convo + "\n"
+            else:
+                total_convo += "<speaker1>: " + convo + "\n"
+        total_convo += "<speaker1>: "
+        user_prompt += total_convo
+
     # only history dialogue
     if prompt_type == "context_only":
         user_prompt += materials[1] + "<speaker1>:"
+
+    # only history dialogue without speaker label
+    if prompt_type == "context_only_wo_label":
+        total_convo = "Dialogue history: \n"
+        for convo in raw_history_convo_list:
+            total_convo += convo + "\n"
+        user_prompt += total_convo
 
     # only history dialogue with small hint
     if prompt_type == "context_hint":
@@ -111,6 +136,11 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=1, section= "tra
         #set the implicit flag to True to exclude persona in few-shot demos
         few_shot_examples = create_few_shot_examples(dataset, conv_id, few_shot_no, section=section, implicit=True)
         user_prompt += few_shot_examples + materials[1]+ "<speaker1>:"
+    if prompt_type == "drift_score_eval":
+        system_prompt += "Considering the dialogue provided, determine whether <speaker1> changes the topic from the previous utterance of <speaker0>. Please output a score between 0 and 1, where 0 indicates no topic change with smooth converstation and 1 indicates an abrupt topic change."
+        user_prompt += "Dialogue history: " + "\n<speaker0>: " + raw_history_convo_list[-1] + "\n<speaker1>: " + raw_target_response 
+        
+
 
     if print_output:
         print("### TASK PROMPT ###\n" + system_prompt)

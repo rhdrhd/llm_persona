@@ -1,4 +1,4 @@
-from prompt import prompt_chatgpt, prompt_azure
+from prompt import prompt_chatgpt, prompt_azure, prompt_ollama, prompt_huggingface
 from helper import generate_filtered_conv_ids, read_json
 import pandas as pd
 import seaborn as sns
@@ -12,14 +12,22 @@ from analyze import plot_avg_metrics
 #context_only, task_prompt_context_implicit, task_prompt_context_explicit, few_shot_implicit
 #conv_ids = generate_random_conv_ids(total_count=2, range_start=1, range_end=500)
 def test_persona_chat(model_name, prompt_type,current_time):
-    conv_ids = range(0,10)
+    conv_ids = range(694,1000)
     #prompt_type = "task_prompt_context_implicit"
     #model_name = "gpt-4o-mini-2024-07-18"
     few_shot_no = 3
     dataset_obj = load_dataset("bavard/personachat_truecased", "full")
     for id in conv_ids:
+        print(f"Testing model: {model_name}, Current Progress: {id/10}%")
         # specific settings are in prompt.py
-        prompt_azure(model_name, id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
+        if model_name in ["chatgpt-4o-latest", "gpt-4o-2024-08-06", "gpt-4o-mini-2024-07-18", "gpt-3.5-turbo-1106"]:
+            prompt_chatgpt(model_name, id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
+        elif model_name in ["Phi-3-5-mini-instruct"]:
+            prompt_azure(model_name, id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
+        elif model_name in ["qwen0.5b"]:
+            prompt_ollama(model_name, id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
+        elif model_name in ["meta-llama/Meta-Llama-3.1-70B-Instruct","mistralai/Mistral-7B-Instruct-v0.3","Qwen/Qwen2-72B-Instruct","microsoft/Phi-3.5-mini-instruct","microsoft/Phi-3-mini-4k-instruct", "meta-llama/Meta-Llama-3.1-8B-Instruct"]:
+            prompt_huggingface(model_name, id, prompt_type, dataset_name= "personachat", dataset = dataset_obj, few_shot_no = few_shot_no, section="validation", current_time = current_time)
 
 
 def test_movie_chat():
@@ -37,19 +45,20 @@ def test_movie_chat():
         results = prompt_chatgpt(id, prompt_type, dataset_name="movie",dataset=corpus)
 
 def test_multiple_models():
-    model_list = ['Phi-3-5-mini-instruct']
+    model_list = ["meta-llama/Meta-Llama-3.1-8B-Instruct"]
     prompt_type = "context_only"
     for model in model_list:
-        current_time = time.strftime("%m%d-%H%M")
-        test_persona_chat(model, prompt_type,current_time)
+        #current_time = time.strftime("%m%d-%H%M")
+        current_time = "0825-1159"
+        test_persona_chat(model, prompt_type, current_time)
 
 #test_movie_chat()
 #test_persona_chat()
-test_multiple_models()
+#test_multiple_models()
 #calculate_metrics_from_json("PersonaChat_Metrics/gpt-4o/experiment1_context_only", "context_only")
 #print_avg_metrics("experiment1_metrics")
-#selected_metrics = ["BLEU-1", "ROUGE-L", "Distinct-1", "Distinct-2", "Persona Coverage", "Persona F1","Cosine Similarity","Perplexity","Avg Drift Score","Confident Drift 001", "Confident Drift 002","Redefine Cosine Similarity"]
-#plot_avg_metrics(["Rebirth/PersonaChat_Metrics/chatgpt-4o-latest/task_prompt_context_explicit_metrics_chatgpt-4o-latest_0823-1259", "Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/task_prompt_context_explicit_metrics_gpt-4o-2024-08-06_0823-1321","Rebirth/PersonaChat_Metrics/gpt-4o-mini-2024-07-18/task_prompt_context_explicit_metrics_gpt-4o-mini-2024-07-18_0823-1252","Rebirth/PersonaChat_Metrics/gpt-3.5-turbo-1106/task_prompt_context_explicit_metrics_gpt-3.5-turbo-1106_0823-1206"], selected_metrics, "table")
+selected_metrics = ["BLEU-1", "ROUGE-L", "Distinct-1", "Distinct-2", "Persona Coverage", "Persona F1","Cosine Similarity","Perplexity","Avg Drift Score","Confident Drift 001", "Confident Drift 002","Redefine Cosine Similarity"]
+plot_avg_metrics(["context_only_metrics_gpt-4o-mini-2024-07-18_0825-1101","Rebirth\PersonaChat_Metrics\gpt-4o-mini-2024-07-18\context_only_metrics_gpt-4o-mini-2024-07-18_0822-2155", "Rebirth\PersonaChat_Metrics\gpt-4o-mini-2024-07-18\context_only_metrics_gpt-4o-mini-2024-07-18_0824-2029"], selected_metrics, "table")
 
 #corpus = Corpus(filename=download("movie-corpus"))
 #generate_filtered_conv_ids(corpus, 1000)

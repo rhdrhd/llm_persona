@@ -13,17 +13,42 @@ import math
 import gensim.downloader as gensim_downloader
 from helper import save_json, read_json
 import matplotlib.pyplot as plt
-from transformers import RobertaTokenizerFast, RobertaModel, logging
+from transformers import RobertaTokenizerFast, RobertaModel, logging, AutoTokenizer, AutoModelForSequenceClassification
 import torch
 
 logging.set_verbosity_error()
-# Load the English NLP model
-en_tokenizer = spacy.load('en_core_web_sm')
-# Load the GloVe model
-glove_model = gensim_downloader.load("glove-twitter-100")
 
-tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
-model = RobertaModel.from_pretrained('roberta-base')
+# Initialize variables to None
+nli_tokenizer = None
+nli_model = None
+en_tokenizer = None
+glove_model = None
+roberta_tokenizer = None
+roberta_model = None
+
+# load these models if needed, and if loaded already, do not load again
+def load_nli_model():
+    global nli_tokenizer, nli_model
+    if nli_tokenizer is None or nli_model is None:
+        nli_model_path = "zayn1111/deberta-v3-dnli"
+        nli_tokenizer = AutoTokenizer.from_pretrained(nli_model_path, use_fast=False, model_max_length=512)
+        nli_model = AutoModelForSequenceClassification.from_pretrained(nli_model_path)
+
+def load_spacy_model():
+    global en_tokenizer
+    if en_tokenizer is None:
+        en_tokenizer = spacy.load('en_core_web_sm')
+
+def load_glove_model():
+    global glove_model
+    if glove_model is None:
+        glove_model = gensim_downloader.load("glove-twitter-100")
+
+def load_roberta_model():
+    global roberta_tokenizer, roberta_model
+    if roberta_tokenizer is None or roberta_model is None:
+        roberta_tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
+        roberta_model = RobertaModel.from_pretrained('roberta-base')
 
 # generate random conversation IDs
 def generate_random_conv_ids(total_count, range_start, range_end):
@@ -195,6 +220,35 @@ def calculate_distinct_2(sentence):
     distinct_2_score = len(unique_bigrams) / total_bigrams
     return distinct_2_score
 
+def calculate_c_score(generated_sentence, personas):
+    premise_list = personas
+    hypothesis = generated_sentence
+    total = 0.0
+    for premise in premise_list:
+        input = nli_tokenizer(premise, hypothesis, truncation=True, return_tensors="pt")
+        output = nli_model(input["input_ids"]) 
+        prediction = torch.softmax(output["logits"][0], -1).tolist()
+        label_names = ["entailment", "neutral", "contradiction"]
+        prediction = {name: round(float(pred) * 100, 1) for pred, name in zip(prediction, label_names)}
+        label_map = {
+            "entailment": 1,
+            "neutral": 0,
+            "contradiction": -1
+        }
+        print(prediction)
+        label_value = label_map[max(prediction, key=prediction.get)]
+        total += label_value
+    return total
+
+def calculate_avg_c_score(filename):
+    data = read_json(filename)
+    total = 0.0
+    for item in data:
+        c_score = calculate_c_score(item["generated_response"], item["persona_text"])
+        total += c_score
+    avg_c_score = total / len(data)
+    return avg_c_score
+
 def calculate_perplexity(log_probs):
 
     avg_log_prob = sum(log_probs) / len(log_probs)
@@ -255,15 +309,15 @@ def calculate_aligned_embedding(gpt_tokens):
     sentence = "".join(gpt_tokens)
 
     # Tokenize using RoBERTa
-    roberta_inputs = tokenizer(sentence, return_tensors='pt')
+    roberta_inputs = roberta_tokenizer(sentence, return_tensors='pt')
 
     # Get the contextualized embeddings
     with torch.no_grad():
-        outputs = model(**roberta_inputs)
+        outputs = roberta_model(**roberta_inputs)
         roberta_embeddings = outputs.last_hidden_state  # (batch_size, sequence_length, hidden_size)
 
     # Convert RoBERTa token IDs back to tokens for alignment
-    o_roberta_tokens = tokenizer.convert_ids_to_tokens(roberta_inputs['input_ids'][0][1:])
+    o_roberta_tokens = roberta_tokenizer.convert_ids_to_tokens(roberta_inputs['input_ids'][0][1:])
     roberta_tokens = clean_tokens(o_roberta_tokens)
     # Now, align the GPT tokens with RoBERTa tokens and extract embeddings
     aligned_embeddings = []
@@ -342,6 +396,8 @@ def calculate_aligned_embedding(gpt_tokens):
 
 # version 0.0.1 cosine_similarity_without_perplexity
 def calculate_drift_willingness(user_prompt, prompt_type):
+    if prompt_type in ["query_only", "context_only_wo_label"] or user_prompt is None:
+        return 0.0
     # extract content except last label
     history = user_prompt.split('\n')[:-1]
     start_index = history.index("Dialogue history: ")
@@ -373,20 +429,21 @@ def get_token_embedding(sentence):
     sentence = sentence.lower()
 
     # Tokenize input
-    inputs = tokenizer(sentence, return_tensors='pt')
+    inputs = roberta_tokenizer(sentence, return_tensors='pt')
     # Generate contextualized embeddings
     with torch.inference_mode():
-        outputs = model(**inputs)
+        outputs = roberta_model(**inputs)
     # The last_hidden_state contains the embeddings
     token_embedding = outputs.last_hidden_state
 
     # Convert token IDs to word tokens
-    tokens = tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
+    tokens = roberta_tokenizer.convert_ids_to_tokens(inputs['input_ids'][0])
 
     return token_embedding, tokens
 
 # version 0.0.2 cosine_similarity_with_perplexity
-def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
+def calculate_drift_perplexity(prompt_type, user_prompt, log_probs, gpt_tokens):
+
     aligned_embedding = calculate_aligned_embedding(gpt_tokens)
     # remove Dialogue History: and User: 
     # extract content except last label
@@ -395,8 +452,12 @@ def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
     # further extract and remove all irrelevant content in the beginning
     dialogue_lines = history[start_index+1:]
 
-    # remove the Bot and User labels
-    dialogue_list_no_labels = [line.split(": ", 1)[1] for line in dialogue_lines]
+    if prompt_type in ["context_only_wo_label"]:
+        dialogue_list_no_labels = dialogue_lines
+    else:
+        # remove the Bot and User labels
+        dialogue_list_no_labels = [line.split(": ", 1)[1] for line in dialogue_lines]
+
     # Get the last utterance
     last_utterance = dialogue_list_no_labels[-1]
 
@@ -421,43 +482,65 @@ def calculate_drift_perplexity(user_prompt, log_probs, gpt_tokens):
 
     return confident_perplexity_001, confident_perplexity_002, redefined_cos_sim
         
+def calculate_basic_metrics(target_sentence, generated_sentence):
+    load_spacy_model()
+    return (
+        calculate_bleu(target_sentence, generated_sentence),
+        calculate_rouge(target_sentence, generated_sentence),
+        calculate_cosine_similarity_embeddings(target_sentence, generated_sentence),
+        calculate_distinct_1(generated_sentence),
+        calculate_distinct_2(generated_sentence),
+        calculate_overlap(target_sentence, generated_sentence)
+    )
 
-
-def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user_prompt, persona, log_probs=None, tokens_list=None, model_name=None, current_time=None):
-    
-    bleu_score = calculate_bleu(target_sentence, generated_sentence)
-    rouge_scores = calculate_rouge(target_sentence, generated_sentence)
-    cosine_similarity = calculate_cosine_similarity_embeddings(target_sentence, generated_sentence)
-    distinct_1_score = calculate_distinct_1 (generated_sentence)
-    distinct_2_score = calculate_distinct_2 (generated_sentence)
-    token_overlap_ratio, char_overlap_ratio = calculate_overlap(target_sentence, generated_sentence)
-    inter_similarity = sum([bleu_score[0], rouge_scores['rougeL'].fmeasure, cosine_similarity,token_overlap_ratio, char_overlap_ratio])/5
-
-    persona_coverage = calculate_persona_coverage(generated_sentence, persona, glove_model)
-    persona_recall = calculate_persona_recall(generated_sentence, persona)
-    persona_precision = calculate_persona_precision(generated_sentence, persona)
-    p_f1 = calculate_p_f1(generated_sentence, persona)
-    drift_willingness = calculate_drift_willingness(user_prompt, prompt_type)
-    if log_probs is not None:
-        perplexity = calculate_perplexity(log_probs)
-        drift_willingness_new = calculate_drift_perplexity(user_prompt, log_probs, tokens_list)
+def calculate_persona_metrics(generated_sentence, persona):
+    if persona is not None:
+        load_glove_model()
+        load_nli_model()
+        return (
+            calculate_persona_coverage(generated_sentence, persona, glove_model),
+            calculate_persona_recall(generated_sentence, persona),
+            calculate_persona_precision(generated_sentence, persona),
+            calculate_p_f1(generated_sentence, persona),
+            calculate_c_score(generated_sentence, persona)
+        )
     else:
-        perplexity = 0
-        drift_willingness_new = [0, 0, 0]
+        return (0, 0, 0, 0)
+
+def calculate_perplexity_metrics(log_probs, prompt_type, user_prompt, tokens_list):
+    if log_probs is not None:
+        load_roberta_model()
+        return(
+            calculate_perplexity(log_probs),
+            calculate_drift_perplexity(prompt_type, user_prompt, log_probs, tokens_list)
+        )
+    else:
+        return (0, [0, 0, 0])
+
+def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user_prompt=None, persona=None, log_probs=None, tokens_list=None, model_name=None, current_time=None):
+    
+    bleu_score, rouge_scores, cosine_similarity, distinct_1_score, distinct_2_score, overlap_ratio = calculate_basic_metrics(target_sentence, generated_sentence)
+
+    inter_similarity = sum([bleu_score[0], rouge_scores['rougeL'].fmeasure, cosine_similarity,overlap_ratio[0], overlap_ratio[1]])/5
+    
+    persona_coverage, persona_recall, persona_precision, p_f1 = calculate_persona_metrics(generated_sentence, persona)
+
+    drift_willingness = calculate_drift_willingness(user_prompt, prompt_type)
+    perplexity, drift_willingness_new = calculate_perplexity_metrics(log_probs, prompt_type, user_prompt, tokens_list)
+
+
     metrics = {
         'Conversation ID': id,
         'BLEU-1': bleu_score[0],
         'BLEU-2': bleu_score[1],
-        'BLEU-3': bleu_score[2],
-        'BLEU-4': bleu_score[3],
         'ROUGE-1': rouge_scores['rouge1'].fmeasure,
         'ROUGE-2': rouge_scores['rouge2'].fmeasure,
         'ROUGE-L': rouge_scores['rougeL'].fmeasure,
         'Cosine Similarity': cosine_similarity,
         'Distinct-1': distinct_1_score,
         'Distinct-2': distinct_2_score,
-        'Token Overlap Ratio': token_overlap_ratio,
-        'Character Overlap Ratio': char_overlap_ratio,
+        'Token Overlap Ratio': overlap_ratio[0],
+        'Character Overlap Ratio': overlap_ratio[1],
         'Inter Similarity': inter_similarity,
         'Persona Coverage': persona_coverage,
         'Persona Recall': persona_recall,
