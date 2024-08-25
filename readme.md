@@ -27,7 +27,15 @@ In this project, we intend to build a chatbot that learns user's style of commun
 |                        | gpt-4o-mini-2024-07-18|   &check;     |
 |                        | gpt-3.5-turbo-1106    |   &check;     |
 
-
+##### Ablation Study (conducted on gpt-4o-mini-2024-07-18)
+| Scheme                 |  Status |
+|------------------------|--------|
+| Full context w/o speaker tag   | &check; |
+| Last utterance with speaker tag  | &check; |
+| Last utterance + 1 extra round with speaker tag | &check; |
+| Last utterance + 2 extra rounds with speaker tag | &check; |
+| Last utterance + 3 extra rounds with speaker tag | &check; |
+| Last utterance + 4 extra rounds with speaker tag | &check; |
 
 
 
