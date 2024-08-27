@@ -40,7 +40,8 @@ def save_json(new_object, filename):
             data,
             option=orjson.OPT_INDENT_2 | orjson.OPT_APPEND_NEWLINE
         ))
-    
+
+
 def read_json(filename):
     file_path = f"{filename}.json"
     
@@ -49,9 +50,15 @@ def read_json(filename):
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"The file {file_path} does not exist.")
         
-        # Attempt to read and parse the JSON file
-        with open(file_path, "rb") as f:
-            data = orjson.loads(f.read())
+        # Attempt to read the JSON file as text
+        with open(file_path, "r", encoding="utf-8") as f:
+            content = f.read()
+        
+        # Replace non-standard JSON values like 'Infinity' with 'null'
+        content = content.replace('Infinity', 'null')
+        
+        # Parse the modified content using orjson
+        data = orjson.loads(content)
         
         return data
     
