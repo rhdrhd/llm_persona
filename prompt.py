@@ -4,7 +4,7 @@ from openai import OpenAI
 from preprocess import construct_prompt, construct_prompt_movie
 from analyze import calculate_metrics
 import json
-from helper import save_prompt_as_array
+from helper import save_prompt_as_array, get_temperature
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.inference.models import SystemMessage, UserMessage
@@ -23,7 +23,7 @@ client_azure = ChatCompletionsClient(
 )
 
 
-def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_name = "movie", dataset = None, few_shot_no = 3, section="train", current_time = None):
+def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_name = "personachat", dataset = None, temp_adjust_factor=None, few_shot_no = 3, section="train", current_time = None, print_output = False):
 
     #model_name = "gpt-4o-mini-2024-07-18"
     #model_name = "chatgpt-4o-latest"
@@ -31,11 +31,13 @@ def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_na
     #model_name = "gpt-3.5-turbo-1106"
     if dataset_name == "personachat":
         dataset = dataset
-        system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section)
+        system_prompt, user_prompt, target_response, persona_text = construct_prompt(dataset, conv_id, prompt_type, few_shot_no, section=section, print_output=print_output)
     elif dataset_name == "movie":
         dataset = dataset
-        system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(dataset, conv_id, prompt_type)
+        system_prompt, user_prompt, target_response, persona_text= construct_prompt_movie(dataset, conv_id, prompt_type, print_output=print_output)
 
+    temperature = get_temperature(temp_adjust_factor, conv_id)
+    print(f"Temperature: {temperature}")
     response = client.chat.completions.create(
         model = model_name,
         #model="gpt-3.5-turbo-0613", 
@@ -43,7 +45,7 @@ def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_na
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
-        temperature=0.9,
+        temperature=temperature,
         top_p=0.9,
         # since persona-chat sets a maximum of 15 words per message
         #max_tokens=100, 
@@ -72,9 +74,16 @@ def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_na
         "raw_response": response.to_dict()
     }
     
+    saved_filename = f"{prompt_type}_{model_name}_{current_time}"
 
-    save_prompt_as_array(formated_response_to_json,f"{prompt_type}_{model_name}_{current_time}")
-    save_prompt_as_array(raw_response_to_json, f"Raw_Response/{dataset_name}_{prompt_type}_{model_name}_{current_time}")
+    if temp_adjust_factor is not None:
+        saved_filename += f"_temperature_change_factor{temp_adjust_factor}"
+    
+    if dataset_name == "movie":
+        saved_filename = f"{dataset_name}_{saved_filename}"
+        
+    save_prompt_as_array(formated_response_to_json, saved_filename)
+    save_prompt_as_array(raw_response_to_json, f"Raw_Response/{dataset_name}_{saved_filename}")
 
     calculate_metrics(prompt_type, conv_id, generated_response, target_response, user_prompt, persona_text, log_probs, tokens_list, model_name, current_time)
 
@@ -133,7 +142,6 @@ def prompt_huggingface(model_name, conv_id, prompt_type = "context_only", datase
     )
 
     response = client.chat.completions.create(
-        model="microsoft/Phi-3.5-mini-instruct",
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -157,7 +165,7 @@ def prompt_huggingface(model_name, conv_id, prompt_type = "context_only", datase
         "tokens_list": tokens_list
     }
     
-    model_name = model_name.split("/")[1]
+    model_name = model_name.split("/")[-1]
 
     save_prompt_as_array(formated_response_to_json,f"{prompt_type}_{model_name}_{current_time}")
 

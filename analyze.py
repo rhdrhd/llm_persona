@@ -15,6 +15,10 @@ from helper import save_json, read_json
 import matplotlib.pyplot as plt
 from transformers import RobertaTokenizerFast, RobertaModel, logging, AutoTokenizer, AutoModelForSequenceClassification
 import torch
+import concurrent.futures
+from functools import lru_cache
+import os
+os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 logging.set_verbosity_error()
 
@@ -27,12 +31,13 @@ roberta_tokenizer = None
 roberta_model = None
 
 # load these models if needed, and if loaded already, do not load again
-def load_nli_model():
+def load_nli_model(use_gpu=True, use_fp16=True):
     global nli_tokenizer, nli_model
     if nli_tokenizer is None or nli_model is None:
         nli_model_path = "zayn1111/deberta-v3-dnli"
         nli_tokenizer = AutoTokenizer.from_pretrained(nli_model_path, use_fast=False, model_max_length=512)
         nli_model = AutoModelForSequenceClassification.from_pretrained(nli_model_path)
+
 
 def load_spacy_model():
     global en_tokenizer
@@ -49,6 +54,10 @@ def load_roberta_model():
     if roberta_tokenizer is None or roberta_model is None:
         roberta_tokenizer = RobertaTokenizerFast.from_pretrained('roberta-base')
         roberta_model = RobertaModel.from_pretrained('roberta-base')
+
+@lru_cache(maxsize=1)
+def get_sentence_model(model_name='all-MiniLM-L6-v2'):
+    return SentenceTransformer(model_name)
 
 # generate random conversation IDs
 def generate_random_conv_ids(total_count, range_start, range_end):
@@ -117,6 +126,8 @@ def calculate_persona_recall(response, personas):
         return 0
     for persona in personas:
         W_p_i = set(tokenize(persona))
+        if len(W_p_i) == 0:
+            return 0
         intersection = W_Y & W_p_i
         recall = len(intersection) / len(W_p_i)
         if recall > max_recall:
@@ -196,7 +207,7 @@ def calculate_rouge(target_sentence, generated_sentence):
     return scores
 
 def calculate_cosine_similarity_embeddings(sentence1, sentence2, model_name='all-MiniLM-L6-v2'):
-    model = SentenceTransformer(model_name)
+    model = get_sentence_model(model_name)
     embeddings = model.encode([sentence1, sentence2])
     cos_sim = cosine_similarity([embeddings[0]], [embeddings[1]])[0][0]
     return cos_sim
@@ -221,33 +232,89 @@ def calculate_distinct_2(sentence):
     return distinct_2_score
 
 def calculate_c_score(generated_sentence, personas):
-    premise_list = personas
-    hypothesis = generated_sentence
-    total = 0.0
-    for premise in premise_list:
-        input = nli_tokenizer(premise, hypothesis, truncation=True, return_tensors="pt")
-        output = nli_model(input["input_ids"]) 
-        prediction = torch.softmax(output["logits"][0], -1).tolist()
-        label_names = ["entailment", "neutral", "contradiction"]
-        prediction = {name: round(float(pred) * 100, 1) for pred, name in zip(prediction, label_names)}
-        label_map = {
-            "entailment": 1,
-            "neutral": 0,
-            "contradiction": -1
-        }
-        print(prediction)
-        label_value = label_map[max(prediction, key=prediction.get)]
-        total += label_value
+    inputs = nli_tokenizer(personas, [generated_sentence] * len(personas), truncation=True, padding=True, return_tensors="pt")
+    inputs = {key: val.to(nli_model.device) for key, val in inputs.items()}  # Ensure inputs are on the same device as model
+    outputs = nli_model(**inputs)
+    predictions = torch.softmax(outputs.logits, dim=-1)
+    label_map = {"entailment": 1, "neutral": 0, "contradiction": -1}
+    label_names = ["entailment", "neutral", "contradiction"]
+    total = sum(label_map[label_names[torch.argmax(pred)]] for pred in predictions)
     return total
 
-def calculate_avg_c_score(filename):
+def calculate_coh_con_score(user_prompt, generated_sentence, personas):
+    P_list = personas
+    Q = user_prompt.split("\n")[-2].split(": ")[1]
+    R = generated_sentence
+    input_P_R = nli_tokenizer(P_list, [R] * len(P_list), truncation=True, padding=True, return_tensors="pt")
+    input_Q_R = nli_tokenizer([Q] * len(P_list), [R] * len(P_list), truncation=True, padding=True, return_tensors="pt")
+
+    input_P_R = {key: val.to(nli_model.device) for key, val in input_P_R.items()}  # Move inputs to device
+    input_Q_R = {key: val.to(nli_model.device) for key, val in input_Q_R.items()}  # Move inputs to device
+
+    output_P_R = nli_model(**input_P_R)
+    output_Q_R = nli_model(**input_Q_R)
+
+    predictions_P_R = torch.softmax(output_P_R.logits, dim=-1)
+    predictions_Q_R = torch.softmax(output_Q_R.logits, dim=-1)
+
+    label_map = {"entailment": 1, "neutral": 0, "contradiction": -1}
+    label_names = ["entailment", "neutral", "contradiction"]
+
+    total_coh_con = 0.0
+    total_con = 0.0
+
+    for pred1, pred2 in zip(predictions_P_R, predictions_Q_R):
+        label_value1 = label_map[label_names[torch.argmax(pred1)]]
+        label_value2 = label_map[label_names[torch.argmax(pred2)]]
+
+        if label_value1 + label_value2 == 2:
+            total_coh_con += 1
+        if label_value2 > 0:
+            total_con += 1
+    
+    return total_con, total_coh_con
+
+def calculate_avg_coherence(filename, batch_size=8):
+    load_nli_model()
+
+    # Ensure model and tokenizer are on the GPU if available
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    nli_model.to(device)
+
     data = read_json(filename)
-    total = 0.0
-    for item in data:
-        c_score = calculate_c_score(item["generated_response"], item["persona_text"])
-        total += c_score
-    avg_c_score = total / len(data)
-    return avg_c_score
+    
+    def process_batch(batch):
+        batch_c_scores = []
+        batch_con_scores = []
+        batch_coh_con_scores = []
+        for item in batch:
+            c_score = calculate_c_score(item["generated_response"], item["persona_text"])
+            con_score, coh_con_score = calculate_coh_con_score(item["user_prompt"], item["generated_response"], item["persona_text"])
+            batch_c_scores.append(c_score)
+            batch_con_scores.append(con_score)
+            batch_coh_con_scores.append(coh_con_score)
+        return batch_c_scores, batch_con_scores, batch_coh_con_scores
+
+    # Initialize totals
+    total_c = 0.0
+    total_con = 0.0
+    total_coh_con = 0.0
+
+    # Process in smaller batches to avoid GPU memory overflow
+    for i in range(0, len(data), batch_size):
+        batch = data[i:i + batch_size]
+        batch_c_scores, batch_con_scores, batch_coh_con_scores = process_batch(batch)
+        total_c += sum(batch_c_scores)
+        total_con += sum(batch_con_scores)
+        total_coh_con += sum(batch_coh_con_scores)
+
+    # Calculate averages
+    avg_c_score = total_c / len(data)
+    avg_con_score = total_con / len(data)
+    avg_coh_con_score = total_coh_con / len(data)
+    
+    return avg_c_score, avg_con_score, avg_coh_con_score
+
 
 def calculate_perplexity(log_probs):
 
@@ -263,6 +330,8 @@ def calculate_perplexity(log_probs):
 def fix_encoding_issues(text):
     replacement_map = {
         "Â°": "°",
+        "'Ãº'": "ú",
+        "âĢĶ": '—',
         "âĢ": "'",
         "â€™": "'",
         "â€œ": '"',
@@ -271,6 +340,7 @@ def fix_encoding_issues(text):
         "â€”": "—",
         "Ķ": "—",
         "\u2014": "—",
+        "Ċ": "\n"
         # Add more replacements as needed
     }
     for incorrect, correct in replacement_map.items():
@@ -279,7 +349,7 @@ def fix_encoding_issues(text):
 
 def clean_tokens(tokens):
     # List of substrings and special tokens to remove
-    substrings_to_remove = ["Ġ", "Ļ", "<s>", "</s>", "<pad>", "<unk>", "<mask>"]
+    substrings_to_remove = ["Ċ","\n","Ġ", "Ļ", "<|eot_id|>","<s>", "</s>", "<pad>", "<unk>", "<mask>"]
     
     cleaned_tokens = []
     for token in tokens:
@@ -297,9 +367,7 @@ def clean_tokens(tokens):
 
 def calculate_aligned_embedding(gpt_tokens):
     # gpt token separate <speaker1> as <, speaker, 1, >:
-    if "".join(gpt_tokens[:4])== "<speaker1>":
-        gpt_tokens = gpt_tokens[4:]
-    
+ 
     gpt_tokens = clean_tokens(gpt_tokens)
 
     # List of tokens from GPT
@@ -307,7 +375,6 @@ def calculate_aligned_embedding(gpt_tokens):
 
     # Combine tokens back into a sentence
     sentence = "".join(gpt_tokens)
-
     # Tokenize using RoBERTa
     roberta_inputs = roberta_tokenizer(sentence, return_tensors='pt')
 
@@ -335,10 +402,10 @@ def calculate_aligned_embedding(gpt_tokens):
         embedding_sum = roberta_embeddings[0, roberta_index].numpy()
         token_count = 1
 
-        #print("prev ",current_roberta_token)
-        #print("current embedding ", embedding_sum[0])
-        #print("roberta_index ", roberta_index)
-        #print("gpt_token ", stripped_gpt_token)
+        print("prev roberta token",current_roberta_token)
+        print("current embedding ", embedding_sum[0])
+        print("roberta_index ", roberta_index)
+        print("gpt_token ", stripped_gpt_token)
 
 
         # Now handle merging RoBERTa tokens to match the final GPT token
@@ -365,7 +432,7 @@ def calculate_aligned_embedding(gpt_tokens):
                 current_roberta_token += next_roberta_token
                 embedding_sum += roberta_embeddings[0, roberta_index].numpy()
                 token_count += 1
-                #print(f"Further merging RoBERTa token '{next_roberta_token}' to form '{current_roberta_token}'")
+                print(f"Further merging RoBERTa token '{next_roberta_token}' to form '{current_roberta_token}'")
             elif len(current_roberta_token) > len(stripped_gpt_token) and gpt_index + 1 < len(gpt_tokens):
                 gpt_index += 1
                 next_gpt_token = gpt_tokens[gpt_index].lstrip()
@@ -378,12 +445,11 @@ def calculate_aligned_embedding(gpt_tokens):
         if current_roberta_token == stripped_gpt_token:
             averaged_embedding = embedding_sum / token_count
             aligned_embeddings.append(averaged_embedding)
-            #print(f"Aligned '{stripped_gpt_token}' to '{current_roberta_token}', averaged embedding shape: {averaged_embedding.shape}")
+            print(f"Aligned '{stripped_gpt_token}' to '{current_roberta_token}', averaged embedding shape: {averaged_embedding.shape}")
+            print()
         else:
             print(f"Warning: Mismatch between GPT token '{stripped_gpt_token}' and RoBERTa token '{current_roberta_token}'")
             mismatch_count += 1
-            
-
 
         # Move to the next tokens
         gpt_index += 1
@@ -396,7 +462,7 @@ def calculate_aligned_embedding(gpt_tokens):
 
 # version 0.0.1 cosine_similarity_without_perplexity
 def calculate_drift_willingness(user_prompt, prompt_type):
-    if prompt_type in ["query_only", "context_only_wo_label"] or user_prompt is None:
+    if prompt_type in ["query_only", "context_only_wo_label", "few_shot_implicit"] or user_prompt is None:
         return 0.0
     # extract content except last label
     history = user_prompt.split('\n')[:-1]
@@ -443,7 +509,8 @@ def get_token_embedding(sentence):
 
 # version 0.0.2 cosine_similarity_with_perplexity
 def calculate_drift_perplexity(prompt_type, user_prompt, log_probs, gpt_tokens):
-
+    if prompt_type in ["few_shot_implicit"] or user_prompt is None:
+        return [0, 0, 0]
     aligned_embedding = calculate_aligned_embedding(gpt_tokens)
     # remove Dialogue History: and User: 
     # extract content except last label
@@ -496,13 +563,11 @@ def calculate_basic_metrics(target_sentence, generated_sentence):
 def calculate_persona_metrics(generated_sentence, persona):
     if persona is not None:
         load_glove_model()
-        load_nli_model()
         return (
             calculate_persona_coverage(generated_sentence, persona, glove_model),
             calculate_persona_recall(generated_sentence, persona),
             calculate_persona_precision(generated_sentence, persona),
             calculate_p_f1(generated_sentence, persona),
-            calculate_c_score(generated_sentence, persona)
         )
     else:
         return (0, 0, 0, 0)
@@ -519,15 +584,18 @@ def calculate_perplexity_metrics(log_probs, prompt_type, user_prompt, tokens_lis
 
 def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user_prompt=None, persona=None, log_probs=None, tokens_list=None, model_name=None, current_time=None):
     
-    bleu_score, rouge_scores, cosine_similarity, distinct_1_score, distinct_2_score, overlap_ratio = calculate_basic_metrics(target_sentence, generated_sentence)
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        basic_metrics_future = executor.submit(calculate_basic_metrics, target_sentence, generated_sentence)
+        persona_metrics_future = executor.submit(calculate_persona_metrics, generated_sentence, persona)
+        drift_willingness_future = executor.submit(calculate_drift_willingness, user_prompt, prompt_type)
+        perplexity_metrics_future = executor.submit(calculate_perplexity_metrics, log_probs, prompt_type, user_prompt, tokens_list)
+
+    bleu_score, rouge_scores, cosine_similarity, distinct_1_score, distinct_2_score, overlap_ratio = basic_metrics_future.result()
+    persona_coverage, persona_recall, persona_precision, p_f1 = persona_metrics_future.result()
+    drift_willingness = drift_willingness_future.result()
+    perplexity, drift_willingness_new = perplexity_metrics_future.result()
 
     inter_similarity = sum([bleu_score[0], rouge_scores['rougeL'].fmeasure, cosine_similarity,overlap_ratio[0], overlap_ratio[1]])/5
-    
-    persona_coverage, persona_recall, persona_precision, p_f1 = calculate_persona_metrics(generated_sentence, persona)
-
-    drift_willingness = calculate_drift_willingness(user_prompt, prompt_type)
-    perplexity, drift_willingness_new = calculate_perplexity_metrics(log_probs, prompt_type, user_prompt, tokens_list)
-
 
     metrics = {
         'Conversation ID': id,
@@ -550,7 +618,7 @@ def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user
         'Avg Drift Score': drift_willingness,
         'Confident Drift 001': drift_willingness_new[0],
         'Confident Drift 002': drift_willingness_new[1],
-        'Redefine Cosine Similarity': drift_willingness_new[2]
+        'Redefine Cosine Similarity': drift_willingness_new[2],
     }
     save_json(metrics, f"{prompt_type}_metrics_{model_name}_{current_time}")
 
@@ -583,7 +651,7 @@ def calculate_avg_metrics(data, selected_metrics=None):
     for object in data:
         for key in avg_metrics.keys():
             value = object[key]
-            if np.isnan(value) or np.isinf(value) or value >1000:
+            if value is None or np.isnan(value) or np.isinf(value) or value >1000:
                 outlier_count[key] += 1
             else: 
                 avg_metrics[key] += object[key]
@@ -591,8 +659,8 @@ def calculate_avg_metrics(data, selected_metrics=None):
     num_objects = len(data)
     
     for key in avg_metrics.keys():
-        avg_metrics[key] /= (num_objects- outlier_count[key])
-        print(f"{key}: {num_objects- outlier_count[key]}")  
+        avg_metrics[key] /= (num_objects - outlier_count[key])
+        print(f"{key}: {num_objects - outlier_count[key]}")  
         if key not in ["Perplexity"]:
             avg_metrics[key] = avg_metrics[key]*100
     return avg_metrics

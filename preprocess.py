@@ -57,7 +57,7 @@ def create_few_shot_examples(dataset, conv_id, few_shot_no, section="train",impl
     if few_shot_no is None:
         print("Please specify the number of few-shot examples")
     max_conv_id = dataset[section]['conv_id'][-1]
-    pool = [num for num in range(1, max_conv_id + 1) if num != conv_id]
+    pool = [num for num in range(0, max_conv_id + 1) if num != conv_id]
     random_conv_ids = get_random_conv_id(pool, few_shot_no)
 
     few_shot_examples = ""
@@ -131,11 +131,12 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=None, section= "
 
     # few-shot demos, history dialogue
     if prompt_type == "few_shot_implicit":
-        system_prompt += "Considering the various user profiles and styles depicted in the provided few-shot examples, and the ongoing discussion's context as established in the previous dialogue history, craft a response within 15 words that is coherent and relevant. This response should be adaptable to the general preferences and communication styles observed in the examples, while seamlessly continuing the dialogue."
+        system_prompt += "By learning the general conversation techniques from few-shot examples with each involving different pairs of users, considering the context established in the last dailogue history, craft a response that is coherent, relevant, and tailored to the interests and style of communication of <speaker1>."
 
         #set the implicit flag to True to exclude persona in few-shot demos
         few_shot_examples = create_few_shot_examples(dataset, conv_id, few_shot_no, section=section, implicit=True)
         user_prompt += few_shot_examples + materials[1]+ "<speaker1>:"
+
     if prompt_type == "drift_score_eval":
         system_prompt += "Considering the dialogue provided, determine whether <speaker1> changes the topic from the previous utterance of <speaker0>. Please output a score between 0 and 1, where 0 indicates no topic change with smooth converstation and 1 indicates an abrupt topic change."
         user_prompt += "Dialogue history: " + "\n<speaker0>: " + raw_history_convo_list[-1] + "\n<speaker1>: " + raw_target_response 
@@ -145,11 +146,14 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=None, section= "
     if print_output:
         print("### TASK PROMPT ###\n" + system_prompt)
         print("### USER PROMPT ###\n" + user_prompt)
+        print("### TARGET RESPONSE ###\n" + raw_target_response)
+        print("### PERSONA TEXT ###\n" + raw_persona_text)
+        exit()
     
 
     return system_prompt, user_prompt, raw_target_response, raw_persona_text
 
-def construct_prompt_movie(corpus, conv_id, prompt_type):
+def construct_prompt_movie(corpus, conv_id, prompt_type, print_output=False):
     system_prompt = ""
     user_prompt = ""
     persona_text = ""
@@ -192,12 +196,20 @@ def construct_prompt_movie(corpus, conv_id, prompt_type):
     # craft different system prompts based on the prompt type
     if prompt_type == "context_only":
         system_prompt = ""
-    elif prompt_type == "task_prompt_implicit":
-        system_prompt += "Note: Each line starts with a speaker tag indicating who is talking. Considering the speaker's profile and the ongoing discussion's context as established in the previous dialogue history, craft a response that is coherent, relevant, and tailored to the speaker's interests and style of communication."
+    elif prompt_type == "task_prompt_context_implicit":
+        system_prompt += "Considering the previous dialogue history, craft a response that is coherent, relevant, and tailored to the interests and style of communication of <speaker1>"
 
-    # access the last user utterance
+    # assign the last utterance in the context as persona text
     raw_target_response = trimmed_df['text'].iloc[-1]  
-    persona_text = raw_target_response 
+    persona_text = [trimmed_df['text'].iloc[-2]]
+
+    if print_output:
+        print("### TASK PROMPT ###\n" + system_prompt)
+        print("### USER PROMPT ###\n" + user_prompt)
+        print("### TARGET RESPONSE ###\n" + raw_target_response)
+        print("### PERSONA TEXT ###\n" + persona_text)
+        exit()
+
     return system_prompt, user_prompt, raw_target_response, persona_text
     
 
