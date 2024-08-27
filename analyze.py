@@ -273,6 +273,8 @@ def calculate_coh_con_score(user_prompt, generated_sentence, personas):
         elif label_value1 == 1:
             total_con += 1
     
+    total_coh_con /= len(P_list)
+    total_con /= len(P_list)
     return total_con, total_coh_con
 
 def calculate_avg_coherence(filename, batch_size=8):
