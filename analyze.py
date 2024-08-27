@@ -269,7 +269,8 @@ def calculate_coh_con_score(user_prompt, generated_sentence, personas):
 
         if label_value1 + label_value2 == 2:
             total_coh_con += 1
-        if label_value2 > 0:
+            total_con += 1
+        elif label_value1 == 1:
             total_con += 1
     
     return total_con, total_coh_con
@@ -696,7 +697,7 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
 
     original_df = pd.DataFrame(metrics_list, index=labels, columns=metric_keys)
     df = original_df.map(lambda x: f"{x:.2f}" if isinstance(x, float) else x)
-
+    df.to_csv('comparison.csv', index=True) 
 
     if type == "bar":
         # Get a list of all metric names from the first item in the list (assuming all data have the same metrics)
