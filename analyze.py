@@ -239,6 +239,7 @@ def calculate_c_score(generated_sentence, personas):
     label_map = {"entailment": 1, "neutral": 0, "contradiction": -1}
     label_names = ["entailment", "neutral", "contradiction"]
     total = sum(label_map[label_names[torch.argmax(pred)]] for pred in predictions)
+    total /= len(personas)
     return total
 
 def calculate_coh_con_score(user_prompt, generated_sentence, personas):
@@ -273,6 +274,8 @@ def calculate_coh_con_score(user_prompt, generated_sentence, personas):
         elif label_value1 == 1:
             total_con += 1
     
+    total_coh_con /= len(P_list)
+    total_con /= len(P_list)
     return total_con, total_coh_con
 
 def calculate_avg_coherence(filename, batch_size=8):

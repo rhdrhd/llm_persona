@@ -1,0 +1,59 @@
+Prompt Scheme: Rebirth/PersonaChat_Metrics/chatgpt-4o-latest/context_only_chatgpt-4o-latest_0823-0621
+Average C Score: 0.04045000000000001
+Average Con Score: 0.04540000000000001
+Average Coh Con Score: 0.0293
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/context_only_gpt-4o-2024-08-06_0822-2223
+Average C Score: 0.029199999999999993
+Average Con Score: 0.036599999999999994
+Average Coh Con Score: 0.019599999999999996
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-mini-2024-07-18/context_only_gpt-4o-mini-2024-07-18_0824-2029
+Average C Score: 0.012400000000000001
+Average Con Score: 0.020300000000000002
+Average Coh Con Score: 0.009849999999999998
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-3.5-turbo-1106/context_only_gpt-3.5-turbo-1106_0823-0236
+Average C Score: 0.0205
+Average Con Score: 0.032999999999999995
+Average Coh Con Score: 0.018900000000000004
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/chatgpt-4o-latest/task_prompt_context_implicit_chatgpt-4o-latest_0823-1510
+Average C Score: 0.094
+Average Con Score: 0.1008
+Average Coh Con Score: 0.0671
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/task_prompt_context_implicit_gpt-4o-2024-08-06_0823-0624
+Average C Score: 0.07555
+Average Con Score: 0.08115
+Average Coh Con Score: 0.04755
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-mini-2024-07-18/task_prompt_context_implicit_gpt-4o-mini-2024-07-18_0823-0234
+Average C Score: 0.0488
+Average Con Score: 0.05425
+Average Coh Con Score: 0.03545
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-3.5-turbo-1106/task_prompt_context_implicit_gpt-3.5-turbo-1106_0823-1034
+Average C Score: 0.11965000000000003
+Average Con Score: 0.12370000000000002
+Average Coh Con Score: 0.0826
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/chatgpt-4o-latest/task_prompt_context_explicit_chatgpt-4o-latest_0823-1259
+Average C Score: 0.2161
+Average Con Score: 0.2201
+Average Coh Con Score: 0.14895000000000003
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/task_prompt_context_explicit_gpt-4o-2024-08-06_0823-1321
+Average C Score: 0.21425000000000002
+Average Con Score: 0.21720000000000003
+Average Coh Con Score: 0.12175
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-4o-mini-2024-07-18/task_prompt_context_explicit_gpt-4o-mini-2024-07-18_0823-1252
+Average C Score: 0.19830000000000006
+Average Con Score: 0.1990000000000001
+Average Coh Con Score: 0.11984999999999998
+
+Prompt Scheme: Rebirth/PersonaChat_Metrics/gpt-3.5-turbo-1106/task_prompt_context_explicit_gpt-3.5-turbo-1106_0823-1206
+Average C Score: 0.32595000000000013
+Average Con Score: 0.32655000000000006
+Average Coh Con Score: 0.14479999999999998
