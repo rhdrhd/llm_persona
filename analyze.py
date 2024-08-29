@@ -239,7 +239,6 @@ def calculate_c_score(generated_sentence, personas):
     label_map = {"entailment": 1, "neutral": 0, "contradiction": -1}
     label_names = ["entailment", "neutral", "contradiction"]
     total = sum(label_map[label_names[torch.argmax(pred)]] for pred in predictions)
-    total /= len(personas)
     return total
 
 def calculate_coh_con_score(user_prompt, generated_sentence, personas):
