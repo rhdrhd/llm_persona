@@ -11,3 +11,4 @@ seaborn==0.13.2
 sentencepiece==0.2.0
 accelerate==0.33.0
 azure-ai-inference==1.0.0b3
+orjson==3.10.7

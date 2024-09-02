@@ -89,6 +89,7 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=None, section= "
     # only history dialogue with last query before response
     if prompt_type == "query_only":
         user_prompt += "Dialogue history: " + "\n<speaker0>: " + raw_history_convo_list[-1] + "\n<speaker1>:" 
+
     if prompt_type == "round3_only":
         total_convo = "Dialogue history: \n"
         # change the number here to select more rounds -3 for one extra round, -5 for two extra rounds, etc.
@@ -99,6 +100,35 @@ def construct_prompt(dataset, conv_id, prompt_type, few_shot_no=None, section= "
                 total_convo += "<speaker1>: " + convo + "\n"
         total_convo += "<speaker1>: "
         user_prompt += total_convo
+
+    if prompt_type == "random_context":
+        total_convo = "Dialogue history: \n"
+        shuffle_list = raw_history_convo_list[:-1]
+        random.shuffle(shuffle_list)
+        for idx, convo in enumerate(shuffle_list):
+            if idx % 2 == 0:
+                total_convo += "<speaker0>: " + convo + "\n"
+            else:
+                total_convo += "<speaker1>: " + convo + "\n"
+        
+        total_convo += "<speaker0>: "+ raw_history_convo_list[-1] +"\n<speaker1>: "
+        user_prompt += total_convo
+
+    if prompt_type == "crazy_random_context":
+        total_convo = "Dialogue history: \n"
+        convo_list = raw_history_convo_list[:-1]
+        for idx, convo in enumerate(convo_list):
+            if idx % 2 == 0:
+                total_convo += "<speaker0>: " + convo + "\n"
+            else:
+                total_convo += "<speaker1>: " + convo + "\n"
+        char_list = list(total_convo)
+        random.shuffle(char_list)
+        shuffled_string = ''.join(char_list)
+        total_convo = "Dialogue history: \n" + shuffled_string
+        user_prompt = total_convo + "\n<speaker0>: "+ raw_history_convo_list[-1] +"\n<speaker1>: "
+        
+    
 
     # only history dialogue
     if prompt_type == "context_only":

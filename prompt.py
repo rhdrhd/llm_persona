@@ -1,19 +1,21 @@
 import os
-from datasets import load_dataset
-from openai import OpenAI
-from preprocess import construct_prompt, construct_prompt_movie
-from analyze import calculate_metrics
 import json
-from helper import save_prompt_as_array, get_temperature
+
+from openai import OpenAI
 from azure.ai.inference import ChatCompletionsClient
 from azure.core.credentials import AzureKeyCredential
 from azure.ai.inference.models import SystemMessage, UserMessage
 from huggingface_hub import InferenceClient
 
-with open('config.json', 'r') as file:
+from preprocess import construct_prompt, construct_prompt_movie
+from analyze import calculate_metrics
+from helper import save_prompt_as_array, get_temperature
+
+
+with open('API_KEYS.json', 'r') as file:
     config = json.load(file)
 
-os.environ['OPENAI_API_KEY'] = config['api_key']
+os.environ['OPENAI_API_KEY'] = config['openai_key']
 client = OpenAI()
 
 os.environ["AZURE_INFERENCE_CREDENTIAL"] = config['azure_key']
@@ -21,7 +23,6 @@ client_azure = ChatCompletionsClient(
     endpoint='https://Phi-3-5-mini-instruct-irlfw.eastus.models.ai.azure.com',
     credential=AzureKeyCredential(config['azure_key'])
 )
-
 
 def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_name = "personachat", dataset = None, temp_adjust_factor=None, few_shot_no = 3, section="train", current_time = None, print_output = False):
 
@@ -40,15 +41,12 @@ def prompt_chatgpt(model_name, conv_id, prompt_type = "context_only", dataset_na
     print(f"Temperature: {temperature}")
     response = client.chat.completions.create(
         model = model_name,
-        #model="gpt-3.5-turbo-0613", 
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt}
         ],
         temperature=temperature,
         top_p=0.9,
-        # since persona-chat sets a maximum of 15 words per message
-        #max_tokens=100, 
         logprobs=True,
         top_logprobs=5
     )

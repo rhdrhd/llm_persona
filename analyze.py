@@ -358,7 +358,6 @@ def clean_tokens(tokens):
     
     cleaned_tokens = []
     for token in tokens:
-        #print("token ", token)
         cleaned_token = token
         for substring in substrings_to_remove:
             cleaned_token = cleaned_token.replace(substring, "")
@@ -407,12 +406,6 @@ def calculate_aligned_embedding(gpt_tokens):
         embedding_sum = roberta_embeddings[0, roberta_index].numpy()
         token_count = 1
 
-        print("prev roberta token",current_roberta_token)
-        print("current embedding ", embedding_sum[0])
-        print("roberta_index ", roberta_index)
-        print("gpt_token ", stripped_gpt_token)
-
-
         # Now handle merging RoBERTa tokens to match the final GPT token
         while len(current_roberta_token) < len(stripped_gpt_token) and roberta_index + 1 < len(roberta_tokens):
             roberta_index += 1
@@ -437,12 +430,11 @@ def calculate_aligned_embedding(gpt_tokens):
                 current_roberta_token += next_roberta_token
                 embedding_sum += roberta_embeddings[0, roberta_index].numpy()
                 token_count += 1
-                print(f"Further merging RoBERTa token '{next_roberta_token}' to form '{current_roberta_token}'")
+
             elif len(current_roberta_token) > len(stripped_gpt_token) and gpt_index + 1 < len(gpt_tokens):
                 gpt_index += 1
                 next_gpt_token = gpt_tokens[gpt_index].lstrip()
                 stripped_gpt_token += next_gpt_token
-                #print(f"Further merging GPT token '{next_gpt_token}' to form '{stripped_gpt_token}'")
             else:
                 break
 
@@ -450,17 +442,14 @@ def calculate_aligned_embedding(gpt_tokens):
         if current_roberta_token == stripped_gpt_token:
             averaged_embedding = embedding_sum / token_count
             aligned_embeddings.append(averaged_embedding)
-            print(f"Aligned '{stripped_gpt_token}' to '{current_roberta_token}', averaged embedding shape: {averaged_embedding.shape}")
-            print()
+
         else:
-            print(f"Warning: Mismatch between GPT token '{stripped_gpt_token}' and RoBERTa token '{current_roberta_token}'")
             mismatch_count += 1
 
         # Move to the next tokens
         gpt_index += 1
         roberta_index += 1
 
-        #print("mismatch count ", mismatch_count)
     return aligned_embeddings
 
     
@@ -490,16 +479,12 @@ def calculate_drift_willingness(user_prompt, prompt_type):
     for i in range(0,len(history_convo)-1,2):
         firstspeaker_uttr = history_convo[i]
         secondspeaker_uttr =  history_convo[i+1]
-        #if i+2<len(history_convo)-1:
         sec_firstspeaker_uttr = history_convo[i+2]
         cos_sim = calculate_cosine_similarity_embeddings(secondspeaker_uttr, sec_firstspeaker_uttr)
         cos_sim_list_first_speaker.append(cos_sim)
 
         cos_sim = calculate_cosine_similarity_embeddings(firstspeaker_uttr, secondspeaker_uttr)
         cos_sim_list_second_speaker.append(cos_sim)
-        #print(f"Pair {count}:")
-        #print(firstspeaker_uttr)
-        #print(secondspeaker_uttr)
         count += 1
     sd_willingess = np.std(cos_sim_list_second_speaker, ddof=1)
     avg_willingness_second = sum(cos_sim_list_second_speaker)/len(cos_sim_list_second_speaker)
@@ -677,7 +662,6 @@ def calculate_avg_metrics(data, selected_metrics=None):
     
     for key in avg_metrics.keys():
         avg_metrics[key] /= (num_objects - outlier_count[key])
-        print(f"{key}: {num_objects - outlier_count[key]}")  
         if key not in ["Perplexity","Confident Drift 001","Confident Drift 002"]:
             avg_metrics[key] = avg_metrics[key]*100
     return avg_metrics
@@ -685,7 +669,6 @@ def calculate_avg_metrics(data, selected_metrics=None):
 def calculate_metrics_from_json(filename, prompt_type):
     data = read_json(filename)
     for item in data:
-        #print(item['user_prompt'])
         calculate_metrics(prompt_type=prompt_type, id = item['conv_id'], generated_sentence=item['generated_response'], target_sentence=item['target_response'], user_prompt=item['user_prompt'], persona=item['persona_text'], log_probs = item['log_probs'])
 
 def print_avg_metrics(filename):
@@ -801,18 +784,3 @@ def plot_correlation_heatmap(filename, selected_metrics, dataset_name):
     plt.title("Correlation Heatmap (without Conversation ID)")
     plt.savefig("correaltion_heatmap.png")
     plt.show()
-
-
-
-def test():
-    personas = [
-        "The cat is happy",
-        "The dog sat on the log",
-        "The cat chased the dog"
-    ]
-    generated_sen = "A fast brown fox leaps over a sleeping dog."
-    target_sen = "The quick brown fox jumps over the lazy dog."
-
-    metrics = calculate_metrics(target_sen, generated_sen, personas)
-    save_json(metrics, "experiment1_metrics")
-    print(metrics)

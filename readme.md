@@ -10,15 +10,35 @@ The current project structure is shown below
 ├── prompt.py
 ├── analyze.py
 ├── main.py
+├── environment.yml
+├── requirements.txt
+├── model_selection_list.json
+├── metric_selection_list.json
+├── README.md
+├── images
 ├── data
 │   ├── PersonaChat_Metrics
 │   ├── Cornell_Movie_Metrics
 │   ├── Human_Performance
-├── environment.yml
-├── requirements.txt
-├── README.md
+
 ```
 
+## How to start
+1. Create a new conda environment from environment.yml file.
+```
+conda env create -f environment.yml
+```
+2. Activate this conda virtual environment. 
+```
+conda activate llm-persona
+```
+3. Install spaCy language model
+```
+python -m spacy download en
+```
+4. Run main.py if all the dependencies required for the current project are already installed. **In main.py file, multi model inference is by default set as False, and test datapoints are set as 20 by default**
+```
+python main.py
 
 ### Performance of ICL in different settings
 

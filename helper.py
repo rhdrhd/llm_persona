@@ -3,6 +3,7 @@ import os
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from convokit import Corpus, download
+from matplotlib import pyplot as plt
 
 def save_json(new_object, filename):
     converted_data = {}
@@ -149,7 +150,6 @@ def get_filtered_conv_ids(corpus):
             return conv_ids
 
 
-
 def calculate_temperature_adjustment():
     data = read_json("Rebirth\PersonaChat_Metrics\gpt-4o-mini-2024-07-18\context_only_metrics_gpt-4o-mini-2024-07-18_0822-2155")
     df = pd.DataFrame(data)
@@ -170,7 +170,26 @@ def get_temperature(temp_adjust_factor, conv_id):
     if temp_adjust_factor is None:
         return 0.9
     else:
-        with open('normalized_drift.json', 'rb') as f:
+        with open('norm_avg_drift_for_temperature.json', 'rb') as f:
             data = orjson.loads(f.read())
         return 0.9 + data[conv_id]/temp_adjust_factor
     
+def plot_csv_file(file_name, x_column, y_column):
+    # Load the CSV file
+    df = pd.read_csv(f'{file_name}.csv')
+    if 'Unnamed: 0' in df.columns:
+        df = df.rename(columns={'Unnamed: 0': 'Model'})
+
+    # Create the plot
+    plt.figure(figsize=(10, 6))
+    plt.plot(df[x_column], df[y_column], marker='o')
+
+    # Add labels and title
+    plt.xlabel(x_column)
+    plt.ylabel(y_column)
+    plt.title(f'{y_column} vs {x_column}')
+
+    # Show the plot
+    plt.grid(True)
+    plt.show()
+    plt.savefig(f'plot_for_{file_name}.png', dpi=300, bbox_inches='tight')
