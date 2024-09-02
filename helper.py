@@ -2,7 +2,6 @@ import orjson
 import os 
 import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
-from convokit import Corpus, download
 from matplotlib import pyplot as plt
 
 def save_json(new_object, filename):

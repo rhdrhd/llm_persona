@@ -4,6 +4,4 @@ dependencies:
   - python=3.9
   - pip
   - pip:
-  - -r requirements.txt
-  - postBuild:
-    - python -m spacy download en
+    - -r requirements.txt

@@ -75,23 +75,3 @@ def __main__():
 if __name__ == "__main__":
     __main__()
 
-#data_new = []
-#for item in data['ablation_test']:
-#    new_item = item.replace("\\", "/")
-#    data_new.append(new_item)
-#plot_avg_metrics(["Rebirth/PersonaChat_Metrics/chatgpt-4o-latest/context_only_metrics_chatgpt-4o-latest_0823-0621","Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/context_only_metrics_gpt-4o-2024-08-06_0822-2223","Rebirth/PersonaChat_Metrics/gpt-4o-mini-2024-07-18/context_only_metrics_gpt-4o-mini-2024-07-18_0822-2155", "Rebirth/PersonaChat_Metrics/gpt-3.5-turbo-1106/context_only_metrics_gpt-3.5-turbo-1106_0823-0236"], selected_metrics=selected_metrics, type="table")
- 
-#plot_correlation_heatmap("Rebirth/PersonaChat_Metrics/gpt-4o-2024-08-06/context_only_metrics_gpt-4o-2024-08-06_0822-2223", selected_metrics, "personachat")
-
-
-
-
-
-def test_perplexity():
-    data = read_json("prompt_content_test")
-    prompt_type = "context_only"
-    user_prompt = data[0]['user_prompt']
-    log_probs = data[0]['log_probs']
-    tokens_list = data[0]['tokens_list']
-
-    calculate_perplexity_metrics(log_probs, prompt_type, user_prompt, tokens_list)

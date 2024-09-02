@@ -16,7 +16,7 @@ The current project structure is shown below
 ├── metric_selection_list.json
 ├── README.md
 ├── images
-├── data
+├── Rebirth
 │   ├── PersonaChat_Metrics
 │   ├── Cornell_Movie_Metrics
 │   ├── Human_Performance
@@ -37,6 +37,11 @@ conda activate llm-persona
 python -m spacy download en
 ```
 4. Insert related API_KEY in API_KEYS.json file.
+```
+    "openai_key": "",
+    "azure_key": "",
+    "hf_key": ""
+```
 5. Run main.py if all the dependencies required for the current project are already installed. **In main.py file, multi model inference is by default set as False, and test datapoints are set as 20 by default**
 ```
 python main.py
