@@ -4,6 +4,7 @@ from rouge_score import rouge_scorer
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import StandardScaler
 from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 import random
 import numpy as np
@@ -18,6 +19,7 @@ import torch
 import concurrent.futures
 from functools import lru_cache
 import os
+import seaborn as sns
 os.environ['PYTORCH_CUDA_ALLOC_CONF'] = 'expandable_segments:True'
 
 logging.set_verbosity_error()
@@ -465,7 +467,7 @@ def calculate_aligned_embedding(gpt_tokens):
 
 # version 0.0.1 cosine_similarity_without_perplexity
 def calculate_drift_willingness(user_prompt, prompt_type):
-    if prompt_type in ["query_only", "context_only_wo_label", "few_shot_implicit"] or user_prompt is None:
+    if prompt_type in ["query_only", "context_only_wo_label", "few_shot_implicit","crazy_random_context"] or user_prompt is None:
         return 0.0
     # extract content except last label
     history = user_prompt.split('\n')[:-1]
@@ -476,23 +478,33 @@ def calculate_drift_willingness(user_prompt, prompt_type):
     # remove the Bot and User labels
     dialogue_list_no_labels = [line.split(": ", 1)[1] for line in dialogue_lines]
     history_convo = dialogue_list_no_labels
-    cos_sim_list = []
+    cos_sim_list_second_speaker = []
+    cos_sim_list_first_speaker = []
     count = 0
     firstspeaker_name = dialogue_lines[0].split(": ", 1)[0]
+
+    #default calculating first speaker's willingness to drift
+    
 
     #default calculating second speaker's willingness to drift
     for i in range(0,len(history_convo)-1,2):
         firstspeaker_uttr = history_convo[i]
         secondspeaker_uttr =  history_convo[i+1]
+        #if i+2<len(history_convo)-1:
+        sec_firstspeaker_uttr = history_convo[i+2]
+        cos_sim = calculate_cosine_similarity_embeddings(secondspeaker_uttr, sec_firstspeaker_uttr)
+        cos_sim_list_first_speaker.append(cos_sim)
+
         cos_sim = calculate_cosine_similarity_embeddings(firstspeaker_uttr, secondspeaker_uttr)
-        cos_sim_list.append(cos_sim)
+        cos_sim_list_second_speaker.append(cos_sim)
         #print(f"Pair {count}:")
         #print(firstspeaker_uttr)
         #print(secondspeaker_uttr)
         count += 1
-
-    avg_willingness = sum(cos_sim_list)/len(cos_sim_list)
-    return avg_willingness
+    sd_willingess = np.std(cos_sim_list_second_speaker, ddof=1)
+    avg_willingness_second = sum(cos_sim_list_second_speaker)/len(cos_sim_list_second_speaker)
+    avg_willingness_first = sum(cos_sim_list_first_speaker)/len(cos_sim_list_first_speaker)
+    return avg_willingness_second, avg_willingness_first, sd_willingess
 
 def get_token_embedding(sentence):
     sentence = sentence.lower()
@@ -512,7 +524,7 @@ def get_token_embedding(sentence):
 
 # version 0.0.2 cosine_similarity_with_perplexity
 def calculate_drift_perplexity(prompt_type, user_prompt, log_probs, gpt_tokens):
-    if prompt_type in ["few_shot_implicit"] or user_prompt is None:
+    if prompt_type in ["few_shot_implicit", "crazy_random_context"] or user_prompt is None:
         return [0, 0, 0]
     aligned_embedding = calculate_aligned_embedding(gpt_tokens)
     # remove Dialogue History: and User: 
@@ -618,7 +630,9 @@ def calculate_metrics(prompt_type, id, generated_sentence, target_sentence, user
         'Persona Precision': persona_precision,
         'Persona F1': p_f1,
         'Perplexity': perplexity,
-        'Avg Drift Score': drift_willingness,
+        'Avg Drift Score': drift_willingness[0],
+        'Avg Drift Score First Speaker': drift_willingness[1],
+        'Drift Variance':drift_willingness[2],
         'Confident Drift 001': drift_willingness_new[0],
         'Confident Drift 002': drift_willingness_new[1],
         'Redefine Cosine Similarity': drift_willingness_new[2],
@@ -664,7 +678,7 @@ def calculate_avg_metrics(data, selected_metrics=None):
     for key in avg_metrics.keys():
         avg_metrics[key] /= (num_objects - outlier_count[key])
         print(f"{key}: {num_objects - outlier_count[key]}")  
-        if key not in ["Perplexity"]:
+        if key not in ["Perplexity","Confident Drift 001","Confident Drift 002"]:
             avg_metrics[key] = avg_metrics[key]*100
     return avg_metrics
 
@@ -672,7 +686,7 @@ def calculate_metrics_from_json(filename, prompt_type):
     data = read_json(filename)
     for item in data:
         #print(item['user_prompt'])
-        calculate_metrics(prompt_type, item['conv_id'], item['target_response'], item['generated_response'], item['persona_text'])
+        calculate_metrics(prompt_type=prompt_type, id = item['conv_id'], generated_sentence=item['generated_response'], target_sentence=item['target_response'], user_prompt=item['user_prompt'], persona=item['persona_text'], log_probs = item['log_probs'])
 
 def print_avg_metrics(filename):
     data = read_json(filename)
@@ -758,6 +772,37 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
         plt.title('Comparison of Metrics Across Files')
         plt.savefig('metrics_table.png')  # Save the figure as a png file
         plt.show() 
+
+
+def plot_correlation_heatmap(filename, selected_metrics, dataset_name):
+    data = read_json(filename)
+    drift_score_data = read_json("New Metrics/human_drift_score_extracted_original")
+    drifit_sd = read_json("drift_score_sd")
+    human_cos = read_json("New Metrics/common_metrics_on_last_query_and_target_response")
+
+
+
+    # Standardizing the '1 - Avg Drift Score' column
+    scaler = StandardScaler()
+    df_selected = pd.DataFrame(data)[selected_metrics]
+    df_drift_score = pd.DataFrame(drift_score_data, columns=['Human Drift Score'])
+    df_drift_score['Human Drift Score'] = scaler.fit_transform(df_drift_score['Human Drift Score'].values.reshape(-1, 1))
+    df_drift_sd = pd.DataFrame(drifit_sd, columns=['Drift Score SD'])
+    df_human_cos = pd.DataFrame(human_cos)[['Cosine Similarity']]
+
+    if dataset_name == "personachat":
+        df_selected['Human Drift Score'] = df_drift_score['Human Drift Score']
+        df_selected['Drift Score SD'] = df_drift_sd['Drift Score SD']
+        df_selected['Human Cos'] = df_human_cos['Cosine Similarity']
+    correlation_matrix_no_id = df_selected.corr()
+    # Generating the heatmap for the updated correlation matrix
+    plt.figure(figsize=(12, 8))
+    sns.heatmap(correlation_matrix_no_id, annot=True, cmap='crest', fmt=".2f", linewidths=0.5)
+    plt.title("Correlation Heatmap (without Conversation ID)")
+    plt.savefig("correaltion_heatmap.png")
+    plt.show()
+
+
 
 def test():
     personas = [
