@@ -71,7 +71,6 @@ def tokenize_with_punctuation(text):
 
 def tokenize(text):
     doc = en_tokenizer(text)
-    # Filter out punctuation and stop words
     return [token.text.lower() for token in doc if token.is_alpha or token.is_digit]
 
 # Calculate the inverse document frequency (idf) for a given term frequency (tf_j).
@@ -80,7 +79,6 @@ def calculate_idf(tf_j):
 
 # Calculate the term frequency (tf) using Zipf's Law with Glove-twitter-100 index (idx).
 def calculate_tf(idx):
-
     return 1e6 * (1 / (idx ** 1.07))
 
 def calculate_persona_coverage(response, personas, glove_model):
@@ -235,7 +233,7 @@ def calculate_distinct_2(sentence):
 
 def calculate_c_score(generated_sentence, personas):
     inputs = nli_tokenizer(personas, [generated_sentence] * len(personas), truncation=True, padding=True, return_tensors="pt")
-    inputs = {key: val.to(nli_model.device) for key, val in inputs.items()}  # Ensure inputs are on the same device as model
+    inputs = {key: val.to(nli_model.device) for key, val in inputs.items()} 
     outputs = nli_model(**inputs)
     predictions = torch.softmax(outputs.logits, dim=-1)
     label_map = {"entailment": 1, "neutral": 0, "contradiction": -1}
@@ -250,8 +248,9 @@ def calculate_coh_con_score(user_prompt, generated_sentence, personas):
     input_P_R = nli_tokenizer(P_list, [R] * len(P_list), truncation=True, padding=True, return_tensors="pt")
     input_Q_R = nli_tokenizer([Q] * len(P_list), [R] * len(P_list), truncation=True, padding=True, return_tensors="pt")
 
-    input_P_R = {key: val.to(nli_model.device) for key, val in input_P_R.items()}  # Move inputs to device
-    input_Q_R = {key: val.to(nli_model.device) for key, val in input_Q_R.items()}  # Move inputs to device
+    # Move inputs to device
+    input_P_R = {key: val.to(nli_model.device) for key, val in input_P_R.items()}  
+    input_Q_R = {key: val.to(nli_model.device) for key, val in input_Q_R.items()}  
 
     output_P_R = nli_model(**input_P_R)
     output_Q_R = nli_model(**input_Q_R)
@@ -305,7 +304,6 @@ def calculate_avg_coherence(filename, batch_size=8):
     total_con = 0.0
     total_coh_con = 0.0
 
-    # Process in smaller batches to avoid GPU memory overflow
     for i in range(0, len(data), batch_size):
         batch = data[i:i + batch_size]
         batch_c_scores, batch_con_scores, batch_coh_con_scores = process_batch(batch)
@@ -329,8 +327,6 @@ def calculate_perplexity(log_probs):
     
     return perplexity
 
-
-
 # Function to replace all known misrepresentations
 def fix_encoding_issues(text):
     replacement_map = {
@@ -346,7 +342,6 @@ def fix_encoding_issues(text):
         "Ķ": "—",
         "\u2014": "—",
         "Ċ": "\n"
-        # Add more replacements as needed
     }
     for incorrect, correct in replacement_map.items():
         text = text.replace(incorrect, correct)
@@ -370,12 +365,8 @@ def clean_tokens(tokens):
     return cleaned_tokens
 
 def calculate_aligned_embedding(gpt_tokens):
-    # gpt token separate <speaker1> as <, speaker, 1, >:
- 
+    # Clean the GPT tokens
     gpt_tokens = clean_tokens(gpt_tokens)
-
-    # List of tokens from GPT
-    #gpt_tokens = [token['token'] for token in data[2]['raw_response']['choices'][0]['logprobs']['content']]
 
     # Combine tokens back into a sentence
     sentence = "".join(gpt_tokens)
@@ -470,12 +461,7 @@ def calculate_drift_willingness(user_prompt, prompt_type):
     cos_sim_list_second_speaker = []
     cos_sim_list_first_speaker = []
     count = 0
-    firstspeaker_name = dialogue_lines[0].split(": ", 1)[0]
 
-    #default calculating first speaker's willingness to drift
-    
-
-    #default calculating second speaker's willingness to drift
     for i in range(0,len(history_convo)-1,2):
         firstspeaker_uttr = history_convo[i]
         secondspeaker_uttr =  history_convo[i+1]
@@ -696,10 +682,9 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
 
     original_df = pd.DataFrame(metrics_list, index=labels, columns=metric_keys)
     df = original_df.map(lambda x: f"{x:.2f}" if isinstance(x, float) else x)
-    df.to_csv('comparison.csv', index=True) 
+    df.to_csv('model_performance_comparison.csv', index=True) 
 
     if type == "bar":
-        # Get a list of all metric names from the first item in the list (assuming all data have the same metrics)
         n_groups = len(metric_keys)
         n_files = len(filenames)
 
@@ -743,17 +728,17 @@ def plot_avg_metrics(filenames, selected_metrics=None, type = "bar"):
 
     elif type == "table":
         # Plot the DataFrame as a table in a matplotlib figure
-        fig, ax = plt.subplots(figsize=(16, 4))  # Adjust size as needed
+        fig, ax = plt.subplots(figsize=(16, 4))  
         ax.axis('tight')
         ax.axis('off')
         table = ax.table(cellText=df.values, colLabels=df.columns, rowLabels=df.index, cellLoc='center', loc='center')
         table.auto_set_font_size(False)
-        table.set_fontsize(7)  # Adjust font size as needed
-        table.scale(1.2, 1.2)  # Adjust scaling factor to fit your screen
+        table.set_fontsize(7)  
+        table.scale(1.2, 1.2)  
 
         plt.subplots_adjust(left=0.3, bottom=0.11, right=0.9, top=0.88, wspace=0.2, hspace=0.2)
         plt.title('Comparison of Metrics Across Files')
-        plt.savefig('metrics_table.png')  # Save the figure as a png file
+        plt.savefig('metrics_table.png') 
         plt.show() 
 
 
@@ -762,8 +747,6 @@ def plot_correlation_heatmap(filename, selected_metrics, dataset_name):
     drift_score_data = read_json("New Metrics/human_drift_score_extracted_original")
     drifit_sd = read_json("drift_score_sd")
     human_cos = read_json("New Metrics/common_metrics_on_last_query_and_target_response")
-
-
 
     # Standardizing the '1 - Avg Drift Score' column
     scaler = StandardScaler()
@@ -778,6 +761,7 @@ def plot_correlation_heatmap(filename, selected_metrics, dataset_name):
         df_selected['Drift Score SD'] = df_drift_sd['Drift Score SD']
         df_selected['Human Cos'] = df_human_cos['Cosine Similarity']
     correlation_matrix_no_id = df_selected.corr()
+
     # Generating the heatmap for the updated correlation matrix
     plt.figure(figsize=(12, 8))
     sns.heatmap(correlation_matrix_no_id, annot=True, cmap='crest', fmt=".2f", linewidths=0.5)
