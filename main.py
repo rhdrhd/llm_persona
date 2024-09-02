@@ -22,7 +22,7 @@ def test_single_model(dataset_name, model_name, prompt_type,current_time):
 
     if dataset_name == "personachat":
         few_shot_no = 3
-        conv_ids = range(0,2)
+        conv_ids = range(0, 20)
         dataset_obj = load_dataset("bavard/personachat_truecased", "full")
     elif dataset_name == "movie":
         few_shot_no = 3
